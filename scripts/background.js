@@ -1,3 +1,29 @@
+// デバッグログを有効化
+browser.storage.local.get('debug').then(data => {
+  const isDebugMode = data.debug === true;
+  
+  // デバッグモードが有効なら標準のconsoleメソッドを使用
+  if (isDebugMode) {
+    console.log('デバッグモード有効: ログ出力を行います');
+    return;
+  }
+  
+  // デバッグモード無効の場合は何もしない関数に置き換え
+  const noop = function() {};
+  
+  // 重要なエラーメッセージはそのまま出力
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  
+  // 他のログ関数を無効化
+  console.log = noop;
+  console.info = noop;
+  console.debug = noop;
+  console.trace = noop;
+}).catch(err => {
+  console.error('デバッグ設定の読み込み中にエラーが発生しました:', err);
+});
+
 // プリセットの保存形式
 const DEFAULT_PRESETS = [
   {
@@ -116,6 +142,13 @@ function clearDprCache() {
   console.log('DPR設定キャッシュをクリアしました');
 }
 
+// DPRキャッシュをクリア
+function clearDprCache() {
+  // キャッシュをクリア（キャッシュ変数がある場合）
+  console.log('DPRキャッシュをクリアしました');
+  // 必要に応じて追加実装
+}
+
 // 論理⇔物理ピクセル変換用のユーティリティ関数
 
 // 論理ピクセルから物理ピクセルへの変換
@@ -153,225 +186,47 @@ async function convertPhysicalToLogical(physicalObj) {
   };
 }
 
-// スクリーン情報取得関数（モニタ判定なし版）
-async function getScreenInfo(tabId) {
+// スクリーン情報取得関数（修正版）
+async function getScreenInfo() {
   try {
-    console.group("スクリーン情報取得プロセス");
-    console.log("タブID:", tabId);
+    console.group('スクリーン情報取得');
     
-    // 1. タブ情報の取得を試みる
-    let tabInfo;
-    try {
-      const tab = await browser.tabs.get(tabId);
-      tabInfo = {
-        url: tab.url,
-        title: tab.title,
-        active: tab.active
-      };
-      console.log("1. タブ情報取得成功:", tabInfo);
-      
-      // 拡張機能ページやabout:ページではコンテンツスクリプトが実行できない
-      const restrictedUrls = ["moz-extension:", "about:", "chrome:", "resource:"];
-      if (!tab.url || restrictedUrls.some(prefix => tab.url.startsWith(prefix))) {
-        console.log("非対応URL検出:", tab.url);
-        throw new Error("非対応URL - 別の方法を試みます");
-      }
-    } catch (tabError) {
-      console.log("1. タブ情報取得エラー:", tabError);
-      tabInfo = { error: tabError.message };
-    }
+    // ユーザー設定のDPR値を取得（百分率）
+    const data = await browser.storage.local.get('systemDpr');
+    const systemDpr = data.systemDpr || 100;  // デフォルトは100%
     
-    // 2. コンテンツスクリプト実行を試みる（詳細DPR情報を取得）
-    try {
-      console.log("2. コンテンツスクリプト実行開始");
-      const results = await browser.tabs.executeScript(tabId, {
-        code: `
-        (function() {
-          try {
-            // DPR関連の詳細情報を収集
-            const dprDetails = {
-              rawValue: window.devicePixelRatio,
-              type: typeof window.devicePixelRatio,
-              source: "window.devicePixelRatio",
-              jsEngine: navigator.userAgent,
-              screenWidth: window.screen.width,
-              screenHeight: window.screen.height,
-              availWidth: window.screen.availWidth,
-              availHeight: window.screen.availHeight,
-              windowInnerWidth: window.innerWidth,
-              windowInnerHeight: window.innerHeight,
-              windowOuterWidth: window.outerWidth,
-              windowOuterHeight: window.outerHeight,
-              willReadFrequently: true
-            };
-            
-            // メディアクエリでも確認
-            const mqString = "(resolution: " + window.devicePixelRatio + "dppx)";
-            dprDetails.mediaQueryMatch = window.matchMedia(mqString).matches;
-            
-            // 比率計算の確認
-            if (window.screen.width > 0 && window.outerWidth > 0) {
-              dprDetails.calculatedRatio = window.screen.width / window.outerWidth;
-            }
-            
-            return {
-              width: window.screen.availWidth || screen.width,
-              height: window.screen.availHeight || screen.height,
-              left: window.screen.availLeft || 0,
-              top: window.screen.availTop || 0,
-              dpr: window.devicePixelRatio || 0.9,  // デフォルト値を0.9に変更
-              source: "contentScript",
-              dprDetails: dprDetails,
-              windowContext: {
-                url: window.location.href,
-                title: document.title
-              }
-            };
-          } catch (e) {
-            return {
-              error: e.toString(),
-              errorSource: "contentScriptExecution"
-            };
-          }
-        })();
-        `,
-        runAt: "document_end"
-      });
-      
-      // 結果確認
-      if (results && results.length > 0 && results[0]) {
-        if (results[0].error) {
-          console.error("コンテンツスクリプト実行エラー:", results[0].error);
-          throw new Error(results[0].error);
-        }
-        
-        // DPR詳細情報のログ
-        console.log("📊 DPR詳細情報:", results[0].dprDetails);
-        console.table({
-          "DPR値": results[0].dpr,
-          "取得元": results[0].dprDetails.source,
-          "生の値": results[0].dprDetails.rawValue,
-          "値の型": results[0].dprDetails.type,
-          "メディアクエリ一致": results[0].dprDetails.mediaQueryMatch,
-          "計算された比率": results[0].dprDetails.calculatedRatio || "N/A"
-        });
-        
-        console.log("2. コンテンツスクリプトからスクリーン情報取得成功:", results[0]);
-        
-        // 追加のDPR検証
-        if (results[0].dpr !== results[0].dprDetails.rawValue) {
-          console.warn("⚠️ DPR値の不一致: 取得値と生の値が異なります");
-        }
-        
-        const result = {
-          ...results[0],
-          overridden: false, // 実際の値なのでオーバーライドしていない
-          dprDetectionMethod: "contentScript(window.devicePixelRatio)"
-        };
-        
-        console.groupEnd();
-        return result;
-      }
-    } catch (scriptError) {
-      console.log("2. コンテンツスクリプト実行エラー:", scriptError);
-      // 次の方法を試みる
-    }
+    // DPR値を小数に変換（例：125% → 1.25）
+    const dprFactor = systemDpr / 100;
+    console.log('ユーザー設定DPR値:', systemDpr, '% (係数:', dprFactor, ')');
     
-    // 3. 現在のウィンドウ情報からDPRを推定
-    try {
-      const win = await browser.windows.getCurrent();
-      console.log("3. ウィンドウ情報から推定");
-      
-      return {
-        width: 1920,
-        height: 1080,
-        left: 0,
-        top: 0,
-        dpr: 0.9, // デフォルト値を0.9に変更
-        overridden: true, // 推定値なのでオーバーライド
-        source: "windowPosition"
-      };
-    } catch (winError) {
-      console.log("3. ウィンドウ情報取得エラー:", winError);
-    }
+    // 現在のウィンドウを取得
+    const windowInfo = await browser.windows.getCurrent();
+    console.log('現在のウィンドウ情報:', windowInfo);
     
-    // 4. システム情報APIを使用（Firefox 85以降）
-    try {
-      if (browser.system && browser.system.display) {
-        const displays = await browser.system.display.getInfo();
-        
-        if (displays && displays.length > 0) {
-          // プライマリディスプレイを探す
-          const primaryDisplay = displays.find(d => d.isPrimary) || displays[0];
-          
-          // DPR計算（OSの設定に基づく）
-          let dpr = primaryDisplay.devicePixelRatio || 0.9; // デフォルト値を0.9に変更
-          
-          console.log("4. system.display APIからディスプレイ情報を取得:", primaryDisplay);
-          
-          return {
-            width: primaryDisplay.bounds.width,
-            height: primaryDisplay.bounds.height,
-            left: primaryDisplay.bounds.left,
-            top: primaryDisplay.bounds.top,
-            dpr: dpr,
-            overridden: false,
-            source: "systemApi"
-          };
-        }
-      }
-    } catch (sysError) {
-      console.log("4. system.display API利用不可または失敗:", sysError);
-    }
-    
-    // 5. OSフィンガープリントからDPRを推定
-    try {
-      const platformInfo = await browser.runtime.getPlatformInfo();
-      
-      // OSに基づくデフォルト値
-      let defaultDpr = 0.9; // 基本のデフォルト値
-      
-      if (platformInfo.os === "mac") {
-        defaultDpr = 2.0; // Macの場合はRetina対応
-      }
-      
-      return {
-        width: 1920,
-        height: 1080,
-        left: 0,
-        top: 0,
-        dpr: defaultDpr,
-        overridden: true,
-        source: "platformInfo"
-      };
-    } catch (platformError) {
-      console.log("5. プラットフォーム情報取得エラー:", platformError);
-    }
-    
-    // 6. 最後の手段 - デフォルト値
-    console.log("6. すべての方法が失敗 - デフォルト値を使用");
-    return {
-      width: 1920,
-      height: 1080,
-      left: 0,
-      top: 0,
-      dpr: 0.9, // デフォルト値を0.9に変更
-      overridden: true,
-      source: "defaultFallback"
+    // 結果を返す
+    const result = {
+      width: windowInfo.width,
+      height: windowInfo.height,
+      left: windowInfo.left,
+      top: windowInfo.top,
+      dpr: dprFactor,
+      source: "userSettings"
     };
     
+    console.log('スクリーン情報結果:', result);
     console.groupEnd();
+    return result;
   } catch (error) {
-    console.error("スクリーン情報取得中の予期せぬエラー:", error);
+    console.error('スクリーン情報取得エラー:', error);
     console.groupEnd();
     
-    // 安全なフォールバック値
+    // エラー時のフォールバック値
     return {
       width: 1920,
       height: 1080,
       left: 0,
       top: 0,
-      dpr: 0.9, // デフォルト値を0.9に変更
+      dpr: 1.0,
       overridden: true,
       source: "errorFallback"
     };
@@ -546,6 +401,125 @@ async function applyPresetToWindow(windowId, preset) {
   }
 }
 
+// 現在のウィンドウにプリセットを適用
+async function applyPresetToCurrentWindow(preset) {
+  try {
+    console.group('プリセット適用処理');
+    console.log('プリセットを適用します:', preset);
+    
+    // プリセットの検証
+    if (!preset || typeof preset !== 'object') {
+      throw new Error('無効なプリセットです');
+    }
+    
+    if (!preset.width || !preset.height) {
+      throw new Error('プリセットにサイズ情報がありません');
+    }
+    
+    // 現在のウィンドウを取得
+    const windowInfo = await browser.windows.getCurrent({populate: false});
+    console.log('現在のウィンドウ情報:', {
+      id: windowInfo.id,
+      width: windowInfo.width,
+      height: windowInfo.height,
+      left: windowInfo.left,
+      top: windowInfo.top
+    });
+    
+    // ユーザー設定のDPR値を取得
+    const data = await browser.storage.local.get('systemDpr');
+    const systemDpr = data.systemDpr || 100;  // デフォルトは100%
+    
+    // DPR値を小数に変換（例：125% → 1.25）
+    const dprFactor = systemDpr / 100;
+    
+    console.log('----------------------------------');
+    console.log('▶ 変換情報:');
+    console.log('   ユーザー設定DPR値:', systemDpr, '%');
+    console.log('   DPR係数:', dprFactor);
+    console.log('   プリセットタイプ:', preset.isPhysicalPixels ? '物理ピクセル' : '論理ピクセル');
+    console.log('----------------------------------');
+    
+    // ★★★ 重要な修正: プリセットの値が物理ピクセルか論理ピクセルかを判断 ★★★
+    let updateParams;
+    
+    if (preset.isPhysicalPixels) {
+      // 値はすでに物理ピクセル - DPRで変換しない
+      console.log('▶ 物理ピクセル値をそのまま使用 (変換なし):');
+      console.log('   幅: ', preset.width, 'px');
+      console.log('   高さ:', preset.height, 'px');
+      console.log('   左位置:', preset.left, 'px');
+      console.log('   上位置:', preset.top, 'px');
+      
+      // 値をそのまま使用
+      updateParams = {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left,
+        top: preset.top
+      };
+      
+      console.log('   論理サイズ換算:', Math.round(preset.width / dprFactor), '×', Math.round(preset.height / dprFactor), 'px');
+    } else {
+      // 論理ピクセルから物理ピクセルへ変換
+      console.log('▶ 論理サイズ (プリセット値):');
+      console.log('   幅: ', preset.width, 'px');
+      console.log('   高さ:', preset.height, 'px');
+      console.log('   左位置:', preset.left, 'px');
+      console.log('   上位置:', preset.top, 'px');
+      
+      // 計算過程を表示
+      console.log('----------------------------------');
+      console.log('▶ 変換計算:');
+      console.log(`   物理幅 = 論理幅 × DPR = ${preset.width} × ${dprFactor} = ${preset.width * dprFactor}`);
+      console.log(`   物理高さ = 論理高さ × DPR = ${preset.height} × ${dprFactor} = ${preset.height * dprFactor}`);
+      console.log(`   物理左位置 = 論理左位置 × DPR = ${preset.left} × ${dprFactor} = ${preset.left * dprFactor}`);
+      console.log(`   物理上位置 = 論理上位置 × DPR = ${preset.top} × ${dprFactor} = ${preset.top * dprFactor}`);
+      
+      // 物理サイズ計算（小数点以下を四捨五入）
+      const physicalWidth = Math.round(preset.width * dprFactor);
+      const physicalHeight = Math.round(preset.height * dprFactor);
+      const physicalLeft = Math.round(preset.left * dprFactor);
+      const physicalTop = Math.round(preset.top * dprFactor);
+      
+      console.log('----------------------------------');
+      console.log('▶ 物理サイズ (変換後):');
+      console.log('   幅: ', physicalWidth, 'px');
+      console.log('   高さ:', physicalHeight, 'px');
+      console.log('   左位置:', physicalLeft, 'px');
+      console.log('   上位置:', physicalTop, 'px');
+      
+      updateParams = {
+        width: physicalWidth,
+        height: physicalHeight,
+        left: physicalLeft,
+        top: physicalTop
+      };
+    }
+    
+    console.log('----------------------------------');
+    console.log('ウィンドウ更新パラメータ:', updateParams);
+    
+    // ウィンドウの更新
+    const updatedWindow = await browser.windows.update(windowInfo.id, updateParams);
+    
+    console.log('----------------------------------');
+    console.log('▶ 更新後のウィンドウ情報:');
+    console.log('   幅: ', updatedWindow.width, 'px (物理)');
+    console.log('   高さ:', updatedWindow.height, 'px (物理)');
+    console.log('   左位置:', updatedWindow.left, 'px (物理)');
+    console.log('   上位置:', updatedWindow.top, 'px (物理)');
+    console.log('   論理換算サイズ:', Math.round(updatedWindow.width / dprFactor), '×', Math.round(updatedWindow.height / dprFactor), 'px');
+    
+    console.groupEnd();
+    return { success: true, window: updatedWindow };
+  } catch (error) {
+    console.error('プリセット適用エラー:', error);
+    console.groupEnd();
+    throw error;
+  }
+}
+
 // プリセットを保存（統一DPR版）
 async function savePreset(preset) {
   try {
@@ -587,48 +561,97 @@ async function getCurrentWindowId() {
   return win.id;
 }
 
-// メッセージハンドラー
+// プリセットを取得する関数
+async function getPresets() {
+  try {
+    const data = await browser.storage.local.get('presets');
+    return data.presets || [];
+  } catch (error) {
+    console.error('プリセット取得エラー:', error);
+    return [];
+  }
+}
+
+// メッセージハンドラを強化
+
+// メッセージハンドラの改善
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  switch (message.action) {
-    case 'applyPreset':
-      return getCurrentWindowId().then(windowId => {
-        return applyPresetToWindow(windowId, message.preset);
-      });
+  console.log('受信したメッセージ:', message);
+  
+  try {
+    switch (message.action) {
+      case 'applyPreset':
+        return applyPresetToCurrentWindow(message.preset)
+          .then(result => {
+            console.log('プリセット適用成功');
+            return { ...result, receivedPreset: message.preset };
+          })
+          .catch(error => {
+            console.error('プリセット適用エラー:', error);
+            return { 
+              error: error.message, 
+              receivedPreset: message.preset 
+            };
+          });
       
-    case 'getCurrentWindowInfo':
-      return getCurrentWindowInfo();
+      case 'getPresets':
+        return getPresetsFromStorage();
       
-    case 'savePreset':
-      return savePreset(message.preset);
-    
-    // DPR設定が更新されたときの処理を追加
-    case 'dprSettingUpdated':
-      console.log(`DPR設定が更新されました: ${message.value}%`);
-      clearDprCache(); // キャッシュをクリア
-      return Promise.resolve({ success: true });
-    
-    // 設定値を確認するための新しいアクション
-    case 'checkDprSetting':
-      return browser.storage.local.get('systemDpr').then(data => {
-        return {
-          systemDpr: data.systemDpr,
-          cachedDpr: cachedDpr
-        };
-      });
+      case 'presetSaved':
+        notifySettingsPage(message);
+        return Promise.resolve({ success: true });
       
-    case 'getPresets':
-      return browser.storage.local.get('presets').then(data => data.presets || []);
+      case 'dprSettingUpdated':
+        console.log(`DPR設定が更新されました: ${message.value}%`);
+        clearDprCache(); // キャッシュをクリア
+        return Promise.resolve({ success: true });
       
-    case 'getSettings':
-      return browser.storage.local.get('settings').then(data => data.settings || DEFAULT_SETTINGS);
-      
-    case 'savePresets':
-      return browser.storage.local.set({ presets: message.presets }).then(() => true);
-      
-    case 'saveSettings':
-      return browser.storage.local.set({ settings: message.settings }).then(() => true);
+      default:
+        console.warn('未処理のメッセージタイプ:', message.action);
+        return Promise.resolve({ error: '不明なアクション: ' + message.action });
+    }
+  } catch (err) {
+    console.error('メッセージ処理エラー:', err);
+    return Promise.reject(err);
   }
 });
+
+// ストレージからプリセットを取得
+async function getPresetsFromStorage() {
+  try {
+    const data = await browser.storage.local.get('presets');
+    return Array.isArray(data.presets) ? data.presets : [];
+  } catch (err) {
+    console.error('プリセット取得エラー:', err);
+    return [];
+  }
+}
+
+// 設定ページに通知
+function notifySettingsPage(message) {
+  try {
+    // 設定タブを探す
+    browser.tabs.query({}).then(tabs => {
+      const settingsTabs = tabs.filter(tab => 
+        tab.url && tab.url.includes('settings.html')
+      );
+      
+      if (settingsTabs.length > 0) {
+        // 見つかったタブにメッセージを送信
+        settingsTabs.forEach(tab => {
+          browser.tabs.sendMessage(tab.id, message)
+            .catch(err => console.warn('タブへのメッセージ送信エラー:', err));
+        });
+      } else {
+        console.log('設定タブが見つかりません。通知をスキップします');
+      }
+    }).catch(err => {
+      console.error('タブ検索エラー:', err);
+    });
+  } catch (err) {
+    console.error('設定ページへの通知エラー:', err);
+  }
+}
 
 // 初期化
 initialize();

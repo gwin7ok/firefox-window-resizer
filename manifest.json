@@ -33,5 +33,14 @@
          "id": "window-resizer@example.com",
          "strict_min_version": "57.0"
       }
-   }
+   },
+   "web_accessible_resources": [
+      "views/popup.html",
+      "views/settings.html",
+      "views/preset-editor.html",
+      "styles/*",
+      "scripts/*",
+      "images/*"
+   ],
+   "content_security_policy": "script-src 'self' https://app.unpkg.com; object-src 'self'"
 }

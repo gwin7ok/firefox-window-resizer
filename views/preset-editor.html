@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>プリセット編集</title>
+  <link rel="stylesheet" href="../styles/preset-editor.css">
+</head>
+<body>
+  <div class="editor-container">
+    <h2 id="editor-title">プリセットを作成</h2>
+    
+    <form id="preset-form">
+      <div class="form-group">
+        <label for="preset-name">プリセット名:</label>
+        <input type="text" id="preset-name" required placeholder="例: 動画視聴用">
+      </div>
+      
+      <div class="size-position-container">
+        <div class="form-group">
+          <label for="preset-width">幅 (ピクセル):</label>
+          <input type="number" id="preset-width" min="1" required>
+        </div>
+        <div class="form-group">
+          <label for="preset-height">高さ (ピクセル):</label>
+          <input type="number" id="preset-height" min="1" required>
+        </div>
+        <div class="form-group">
+          <label for="preset-left">左位置 (ピクセル):</label>
+          <input type="number" id="preset-left" required>
+        </div>
+        <div class="form-group">
+          <label for="preset-top">上位置 (ピクセル):</label>
+          <input type="number" id="preset-top" required>
+        </div>
+      </div>
+      
+      <div class="button-container">
+        <button type="button" id="use-current-size" class="button-secondary">現在のサイズとポジションを使用</button>
+      </div>
+      <div id="size-info-text" class="info-text" style="display: none;"></div>
+      
+      <div class="button-container">
+        <button type="submit" id="save-preset" class="button-primary">プリセットを保存</button>
+        <button type="button" id="cancel-button" class="button-secondary">キャンセル</button>
+      </div>
+    </form>
+  </div>
+  
+  <script src="../scripts/browser-polyfill.min.js"></script>
+  <script src="../views/preset-editor.js"></script>
+</body>
+</html>

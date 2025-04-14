@@ -1,0 +1,99 @@
+/* ポップアップ内の余白と間隔を調整 */
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.editor-container {
+  max-width: 600px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  padding: 20px 30px 30px;
+  box-sizing: border-box;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #0c0c0d;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+/* サイズとポジション入力を2列に */
+.size-position-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+/* 入力フィールドのスタイル改善 */
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 16px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  border-color: #0060df;
+  outline: none;
+  box-shadow: 0 0 0 1px #0060df;
+}
+
+/* ボタンコンテナのスタイル */
+.button-container {
+  margin-top: 20px;
+  margin-bottom: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+/* ボタンのスタイル */
+button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.button-primary {
+  background-color: #0060df;
+  color: white;
+}
+
+.button-primary:hover {
+  background-color: #003eaa;
+}
+
+.button-secondary {
+  background-color: #f0f0f4;
+  color: #0c0c0d;
+  border: 1px solid #ccc;
+}
+
+.button-secondary:hover {
+  background-color: #e8e8e8;
+}
+
+/* 情報テキスト */
+.info-text {
+  font-size: 14px;
+  color: #0c0c0d;
+  opacity: 0.7;
+  margin: 10px 0;
+}

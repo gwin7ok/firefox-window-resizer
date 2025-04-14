@@ -5,28 +5,85 @@ document.addEventListener('DOMContentLoaded', async function() {
   // プリセット一覧を読み込む
   loadPresets();
   
-  // DPR設定を確実に読み込む
+  // DPR設定を読み込む
   await loadDprSetting();
   
   // イベントリスナーを設定
   setupEventListeners();
+  
+  // メッセージリスナーを設定
+  setupMessageListeners();
   
   console.log('設定画面の初期化が完了しました');
 });
 
 // イベントリスナーのセットアップ
 function setupEventListeners() {
-  // プリセットフォームの送信イベント
-  document.getElementById('preset-form').addEventListener('submit', savePreset);
+  // 新規プリセット作成ボタン - 修正
+  document.getElementById('add-preset-button').addEventListener('click', function(event) {
+    // イベントオブジェクトではなく、nullまたは引数なしで呼び出す
+    openPresetEditor(null); // または単に openPresetEditor();
+  });
   
-  // 現在のサイズを使用するボタン
-  document.getElementById('use-current-size').addEventListener('click', useCurrentWindowSize);
+  // DPR設定フォームのsubmitイベント - インラインハンドラーの代わり
+  document.getElementById('dpr-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    saveDprSetting();
+  });
   
-  // 編集キャンセルボタン
-  document.getElementById('cancel-edit').addEventListener('click', cancelEdit);
+  // DPR設定保存ボタンのクリックイベント（念のため）
+  document.getElementById('save-dpr-setting').addEventListener('click', function(event) {
+    event.preventDefault();
+    saveDprSetting();
+  });
+}
+
+// メッセージリスナーのセットアップ
+function setupMessageListeners() {
+  // タブメッセージを受信
+  browser.runtime.onMessage.addListener(message => {
+    console.log('メッセージを受信:', message);
+    
+    if (message.action === 'presetSaved') {
+      // プリセットが保存されたら一覧を更新
+      loadPresets();
+      
+      // メッセージを表示
+      const actionText = message.isEdit ? '更新' : '作成';
+      showStatusMessage(`プリセットを${actionText}しました`);
+    }
+  });
+}
+
+// ステータスメッセージを表示
+function showStatusMessage(message, duration = 3000) {
+  // 既存のメッセージ要素があれば削除
+  const existingMsg = document.getElementById('status-message');
+  if (existingMsg) {
+    existingMsg.remove();
+  }
   
-  // DPR設定保存ボタン
-  document.getElementById('save-dpr-setting').addEventListener('click', saveDprSetting);
+  // 新しいメッセージ要素を作成
+  const msgElement = document.createElement('div');
+  msgElement.id = 'status-message';
+  msgElement.className = 'status-message';
+  msgElement.textContent = message;
+  
+  // bodyに追加
+  document.body.appendChild(msgElement);
+  
+  // アニメーション用にすぐにクラスを追加
+  setTimeout(() => {
+    msgElement.classList.add('visible');
+  }, 10);
+  
+  // 一定時間後に非表示
+  setTimeout(() => {
+    msgElement.classList.remove('visible');
+    setTimeout(() => {
+      msgElement.remove();
+    }, 300); // フェードアウト後に削除
+  }, duration);
 }
 
 // プリセット一覧を読み込む
@@ -52,121 +109,102 @@ async function loadPresets() {
     
     noPresetsMessage.style.display = 'none';
     
-    // プリセットカードを作成
-    presets.forEach(preset => {
-      const card = createPresetCard(preset);
-      container.appendChild(card);
+    // プリセット一覧テーブルを作成
+    const table = document.createElement('table');
+    table.className = 'presets-table';
+    
+    // テーブルヘッダー
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    ['プリセット名', 'サイズ', '位置', '操作'].forEach(text => {
+      const th = document.createElement('th');
+      th.textContent = text;
+      headerRow.appendChild(th);
     });
+    
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // テーブルボディ
+    const tbody = document.createElement('tbody');
+    
+    presets.forEach(preset => {
+      const row = document.createElement('tr');
+      
+      // プリセット名
+      const nameCell = document.createElement('td');
+      nameCell.textContent = preset.name;
+      row.appendChild(nameCell);
+      
+      // サイズ
+      const sizeCell = document.createElement('td');
+      sizeCell.textContent = `${preset.width}×${preset.height}`;
+      row.appendChild(sizeCell);
+      
+      // 位置
+      const positionCell = document.createElement('td');
+      positionCell.textContent = `(${preset.left}, ${preset.top})`;
+      row.appendChild(positionCell);
+      
+      // 操作ボタン
+      const actionCell = document.createElement('td');
+      actionCell.className = 'action-buttons';
+      
+      const editButton = document.createElement('button');
+      editButton.className = 'edit-button';
+      editButton.textContent = '編集';
+      editButton.addEventListener('click', () => openPresetEditor(preset.id));
+      
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'delete-button';
+      deleteButton.textContent = '削除';
+      deleteButton.addEventListener('click', () => deletePreset(preset.id));
+      
+      actionCell.appendChild(editButton);
+      actionCell.appendChild(deleteButton);
+      row.appendChild(actionCell);
+      
+      tbody.appendChild(row);
+    });
+    
+    table.appendChild(tbody);
+    container.appendChild(table);
     
   } catch (err) {
     console.error('プリセット読み込みエラー:', err);
   }
 }
 
-// プリセットカードを作成
-function createPresetCard(preset) {
-  const card = document.createElement('div');
-  card.className = 'preset-card';
-  card.dataset.id = preset.id;
-  
-  const title = document.createElement('h3');
-  title.textContent = preset.name;
-  
-  const details = document.createElement('p');
-  details.textContent = `${preset.width}×${preset.height} @ (${preset.left}, ${preset.top})`;
-  
-  const buttonContainer = document.createElement('div');
-  buttonContainer.className = 'preset-card-buttons';
-  
-  const editButton = document.createElement('button');
-  editButton.textContent = '編集';
-  editButton.addEventListener('click', () => editPreset(preset));
-  
-  const deleteButton = document.createElement('button');
-  deleteButton.textContent = '削除';
-  deleteButton.addEventListener('click', () => deletePreset(preset.id));
-  
-  buttonContainer.appendChild(editButton);
-  buttonContainer.appendChild(deleteButton);
-  
-  card.appendChild(title);
-  card.appendChild(details);
-  card.appendChild(buttonContainer);
-  
-  return card;
-}
-
-// プリセットを編集
-function editPreset(preset) {
-  // フォームに値をセット
-  document.getElementById('preset-name').value = preset.name;
-  document.getElementById('preset-width').value = preset.width;
-  document.getElementById('preset-height').value = preset.height;
-  document.getElementById('preset-left').value = preset.left;
-  document.getElementById('preset-top').value = preset.top;
-  
-  // 編集モードにする
-  document.getElementById('preset-form').dataset.editId = preset.id;
-  document.getElementById('save-preset').textContent = 'プリセットを更新';
-  document.getElementById('cancel-edit').style.display = 'block';
-  
-  // フォームにスクロール
-  document.getElementById('preset-form').scrollIntoView({ behavior: 'smooth' });
-}
-
-// 編集をキャンセル
-function cancelEdit() {
-  // フォームをリセット
-  document.getElementById('preset-form').reset();
-  delete document.getElementById('preset-form').dataset.editId;
-  document.getElementById('save-preset').textContent = 'プリセットを保存';
-  document.getElementById('cancel-edit').style.display = 'none';
-}
-
-// プリセットを保存
-async function savePreset(event) {
-  event.preventDefault();
-  
+// プリセット編集ウィンドウを開く
+function openPresetEditor(presetId = null) {
   try {
-    // フォームから値を取得
-    const name = document.getElementById('preset-name').value;
-    const width = parseInt(document.getElementById('preset-width').value, 10);
-    const height = parseInt(document.getElementById('preset-height').value, 10);
-    const left = parseInt(document.getElementById('preset-left').value, 10);
-    const top = parseInt(document.getElementById('preset-top').value, 10);
+    // 引数のタイプをチェック
+    if (presetId && typeof presetId === 'object') {
+      console.warn('警告: openPresetEditorに不正な値が渡されました', presetId);
+      presetId = null;
+    }
     
-    // 編集モードかどうか
-    const editId = document.getElementById('preset-form').dataset.editId;
+    console.log('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
     
-    // プリセットオブジェクトを作成
-    const preset = {
-      id: editId || null, // 新規作成時はnull、バックグラウンドスクリプトで生成
-      name,
-      width,
-      height,
-      left,
-      top,
-      isPhysicalPixels: true // 常に物理ピクセルとして扱う
-    };
+    const url = browser.runtime.getURL('views/preset-editor.html');
+    const fullUrl = presetId ? `${url}?id=${presetId}` : url;
     
-    // バックグラウンドスクリプトに保存を依頼
-    const updatedPresets = await browser.runtime.sendMessage({
-      action: 'savePreset',
-      preset
+    // 十分な初期サイズを設定
+    browser.windows.create({
+      url: fullUrl,
+      type: 'popup',
+      width: 650,
+      height: 600  // 初期高さを600pxに増加
+    }).then(window => {
+      console.log('プリセットエディタウィンドウを開きました:', window);
+    }).catch(err => {
+      console.error('ウィンドウ作成エラー:', err);
+      alert('プリセットエディタを開けませんでした: ' + err.message);
     });
-    
-    // プリセット一覧を更新
-    loadPresets();
-    
-    // フォームをリセット
-    cancelEdit();
-    
-    // 成功メッセージ
-    alert(editId ? 'プリセットを更新しました' : 'プリセットを保存しました');
-    
   } catch (err) {
-    console.error('プリセット保存エラー:', err);
-    alert('プリセットの保存に失敗しました');
+    console.error('エディタ起動エラー:', err);
+    alert('プリセットエディタの起動に失敗しました: ' + err.message);
   }
 }
 
@@ -189,10 +227,8 @@ async function deletePreset(id) {
     // プリセット一覧を更新
     loadPresets();
     
-    // 編集中だった場合はキャンセル
-    if (document.getElementById('preset-form').dataset.editId === id) {
-      cancelEdit();
-    }
+    // 成功メッセージ
+    showStatusMessage('プリセットを削除しました');
     
   } catch (err) {
     console.error('プリセット削除エラー:', err);
@@ -203,22 +239,25 @@ async function deletePreset(id) {
 // DPR設定を読み込む
 async function loadDprSetting() {
   try {
-    console.log('拡大率設定を読み込んでいます...');
+    console.log('システムDPR設定を読み込んでいます...');
     
     const data = await browser.storage.local.get('systemDpr');
-    console.log('storage.local から取得したデータ:', data);
+    const dprValue = data.systemDpr || 100; // デフォルト100%
     
-    const systemDpr = data.systemDpr !== undefined ? data.systemDpr : 100;
-    console.log(`読み込んだ拡大率設定: ${systemDpr}%`);
+    console.log('読み込まれたDPR設定:', dprValue, '%');
     
-    document.getElementById('system-dpr').value = systemDpr;
+    // フォームに設定
+    const dprInput = document.getElementById('system-dpr');
+    if (dprInput) {
+      dprInput.value = dprValue;
+    } else {
+      console.error('DPR入力要素が見つかりません');
+    }
     
-    return systemDpr;
+    console.log('DPR設定の読み込みが完了しました');
   } catch (err) {
     console.error('DPR設定読み込みエラー:', err);
-    // エラーの場合はデフォルト値を表示
-    document.getElementById('system-dpr').value = 100;
-    return 100;
+    // エラー表示
   }
 }
 
@@ -237,16 +276,8 @@ async function saveDprSetting() {
       return;
     }
     
-    // 保存前の値を確認（デバッグ用）
-    const beforeData = await browser.storage.local.get('systemDpr');
-    console.log('保存前の設定値:', beforeData);
-    
     // 保存
     await browser.storage.local.set({ systemDpr: dprValue });
-    
-    // 保存後の値を確認（デバッグ用）
-    const afterData = await browser.storage.local.get('systemDpr');
-    console.log('保存後の設定値:', afterData);
     
     // 保存したことをバックグラウンドスクリプトに通知
     await browser.runtime.sendMessage({ 
@@ -256,58 +287,19 @@ async function saveDprSetting() {
     
     // 保存成功メッセージを表示
     const messageElement = document.getElementById('dpr-save-message');
-    messageElement.textContent = `拡大率設定（${dprValue}%）を保存しました`;
-    messageElement.style.display = 'block';
-    
-    // 3秒後にメッセージを非表示
-    setTimeout(() => {
-      messageElement.style.display = 'none';
-    }, 3000);
+    if (messageElement) {
+      messageElement.textContent = `拡大率設定（${dprValue}%）を保存しました`;
+      messageElement.style.display = 'block';
+      
+      // 3秒後にメッセージを非表示
+      setTimeout(() => {
+        messageElement.style.display = 'none';
+      }, 3000);
+    }
     
     console.log('拡大率設定の保存に成功しました');
   } catch (err) {
     console.error('DPR設定保存エラー:', err);
     alert('設定の保存に失敗しました: ' + err.message);
-  }
-}
-
-// 現在のウィンドウサイズと位置を取得してフォームに設定
-async function useCurrentWindowSize() {
-  try {
-    // バックグラウンドスクリプトからウィンドウ情報を取得
-    const windowInfo = await browser.runtime.sendMessage({ action: 'getCurrentWindowInfo' });
-    
-    // DPR情報を取得
-    const dpr = windowInfo.dpr || 1.0;
-    const dprPercent = windowInfo.dprPercent || 100;
-    
-    // 物理ピクセル値を確実に取得
-    const physicalWidth = windowInfo.physicalWidth;
-    const physicalHeight = windowInfo.physicalHeight;
-    const physicalLeft = windowInfo.physicalLeft;
-    const physicalTop = windowInfo.physicalTop;
-    
-    console.log('取得したウィンドウ情報:', {
-      論理: { width: windowInfo.width, height: windowInfo.height },
-      物理: { width: physicalWidth, height: physicalHeight },
-      DPR: dpr,
-      拡大率: `${dprPercent}%`
-    });
-    
-    // 物理ピクセル値をフォームにセット
-    document.getElementById('preset-width').value = physicalWidth;
-    document.getElementById('preset-height').value = physicalHeight;
-    document.getElementById('preset-left').value = physicalLeft;
-    document.getElementById('preset-top').value = physicalTop;
-    
-    // 物理ピクセル値であることを明示的に表示
-    const infoText = document.getElementById('size-info-text');
-    if (infoText) {
-      infoText.textContent = `※現在のサイズ（物理ピクセル、拡大率: ${dprPercent}%）`;
-      infoText.style.display = 'block';
-    }
-  } catch (err) {
-    console.error('ウィンドウサイズ取得エラー:', err);
-    alert('現在のウィンドウ情報の取得に失敗しました');
   }
 }
