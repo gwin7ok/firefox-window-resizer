@@ -35,10 +35,19 @@ async function loadPresets() {
 // プリセットを適用
 async function applyPreset(preset) {
   try {
+    console.log("適用するプリセット:", preset);
+    
+    // 物理ピクセルとして保存されていることを明示
+    const presetWithFlag = {
+      ...preset,
+      isPhysicalPixels: true  // この値でbackgroundスクリプトに物理ピクセル値であることを伝える
+    };
+    
     await browser.runtime.sendMessage({ 
       action: 'applyPreset',
-      preset: preset
+      preset: presetWithFlag
     });
+    
     window.close(); // 適用後にポップアップを閉じる
   } catch (err) {
     console.error('プリセット適用エラー:', err);

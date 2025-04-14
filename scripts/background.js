@@ -20,13 +20,27 @@ const FIXED_DPR_SETTINGS = {
   secondary: 1.0   // セカンダリモニタは100%
 };
 
-// 初期化処理
+// 初期化処理を拡張
 async function initialize() {
   // ストレージをチェックし、初期データがなければ設定
   const data = await browser.storage.local.get(['presets', 'settings']);
   
   if (!data.presets) {
     await browser.storage.local.set({ presets: DEFAULT_PRESETS });
+  } else {
+    // 既存のプリセットがisPhysicalPixelsフラグを持っているか確認
+    const hasFlag = data.presets.some(preset => 'isPhysicalPixels' in preset);
+    
+    if (!hasFlag) {
+      // フラグがない場合、すべてのプリセットにフラグを追加
+      const updatedPresets = data.presets.map(preset => ({
+        ...preset,
+        isPhysicalPixels: true  // 物理ピクセルとして扱う
+      }));
+      
+      console.log("既存のプリセットにフラグを追加しました");
+      await browser.storage.local.set({ presets: updatedPresets });
+    }
   }
   
   if (!data.settings) {
@@ -139,6 +153,8 @@ async function applyDefaultPresetIfNeeded() {
   if (settings && settings.defaultPresetId !== null && presets) {
     const defaultPreset = presets.find(preset => preset.id === settings.defaultPresetId);
     if (defaultPreset) {
+      console.log("デフォルトプリセットを適用します:", defaultPreset);
+      
       // 現在のウィンドウに適用
       const windows = await browser.windows.getAll();
       if (windows.length > 0) {
@@ -148,31 +164,67 @@ async function applyDefaultPresetIfNeeded() {
   }
 }
 
-// ウィンドウにプリセットを適用（物理ピクセル → 論理ピクセル変換）
+// ウィンドウにプリセットを適用（物理ピクセル → 論理ピクセル変換を追加）
 async function applyPresetToWindow(windowId, preset) {
-  // 現在のタブの情報を取得してDPRを調べる
-  const tabs = await browser.tabs.query({ active: true, windowId: windowId });
-  
-  if (tabs.length === 0) {
-    throw new Error("アクティブタブが見つかりません");
+  try {
+    // 現在のタブの情報を取得してDPRを調べる
+    const tabs = await browser.tabs.query({ active: true, windowId: windowId });
+    
+    if (tabs.length === 0) {
+      throw new Error("アクティブタブが見つかりません");
+    }
+    
+    // DPRを取得
+    const screenInfo = await getScreenInfo(tabs[0].id);
+    const dpr = screenInfo.dpr || 1.0;
+    
+    console.log(`プリセット適用: DPR=${dpr}で変換します`, preset);
+    
+    // 物理ピクセル値を論理ピクセル値に変換（DPRで割る）
+    // 注: プリセットに保存された値は物理ピクセル単位と想定
+    const logicalWidth = Math.round(preset.width / dpr);
+    const logicalHeight = Math.round(preset.height / dpr);
+    const logicalLeft = Math.round(preset.left / dpr);
+    const logicalTop = Math.round(preset.top / dpr);
+    
+    // デバッグログ
+    console.log("物理ピクセル値:", { width: preset.width, height: preset.height, left: preset.left, top: preset.top });
+    console.log("論理ピクセル値:", { width: logicalWidth, height: logicalHeight, left: logicalLeft, top: logicalTop });
+    
+    // ブラウザAPIには論理ピクセル値を渡す
+    return await browser.windows.update(windowId, {
+      width: logicalWidth,
+      height: logicalHeight,
+      left: logicalLeft,
+      top: logicalTop
+    });
+  } catch (error) {
+    console.error("プリセット適用エラー:", error);
+    
+    // エラー時は直接変換して適用を試みる（最終手段）
+    try {
+      // 固定DPR値を使用
+      const isSecondary = preset.left < 0;
+      const fixedDpr = isSecondary ? 1.0 : 1.25; // メインモニタ125%、セカンダリ100%
+      
+      const logicalWidth = Math.round(preset.width / fixedDpr);
+      const logicalHeight = Math.round(preset.height / fixedDpr);
+      const logicalLeft = Math.round(preset.left / fixedDpr);
+      const logicalTop = Math.round(preset.top / fixedDpr);
+      
+      console.warn("固定DPR値でプリセットを適用します:", fixedDpr);
+      
+      return await browser.windows.update(windowId, {
+        width: logicalWidth,
+        height: logicalHeight,
+        left: logicalLeft,
+        top: logicalTop
+      });
+    } catch (fallbackError) {
+      console.error("プリセット適用の最終手段も失敗:", fallbackError);
+      throw error; // 元のエラーをスロー
+    }
   }
-  
-  const screenInfo = await getScreenInfo(tabs[0].id);
-  const dpr = screenInfo.dpr || 1;
-  
-  // 物理ピクセル値を論理ピクセル値に変換（DPRで割る）
-  const logicalWidth = Math.round(preset.width / dpr);
-  const logicalHeight = Math.round(preset.height / dpr);
-  const logicalLeft = Math.round(preset.left / dpr);
-  const logicalTop = Math.round(preset.top / dpr);
-  
-  // ブラウザAPIには論理ピクセル値を渡す
-  await browser.windows.update(windowId, {
-    width: logicalWidth,
-    height: logicalHeight,
-    left: logicalLeft,
-    top: logicalTop
-  });
 }
 
 // プリセットを保存（IDは自動生成）
@@ -215,10 +267,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return getCurrentWindowInfo();
       
     case 'applyPreset':
+      console.log("プリセット適用リクエスト受信:", message.preset);
       return browser.windows.getCurrent().then(win => 
         applyPresetToWindow(win.id, message.preset)).then(() => true);
       
     case 'savePreset':
+      console.log("プリセット保存リクエスト受信:", message.preset);
       return savePreset(message.preset);
   }
 });

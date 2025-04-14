@@ -255,7 +255,7 @@ async function savePreset() {
     height,
     left,
     top,
-    // 物理ピクセルとして保存
+    // 物理ピクセルとして保存されていることを明示
     isPhysicalPixels: true
   };
   
