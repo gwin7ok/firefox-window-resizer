@@ -32,18 +32,31 @@ async function loadPresets() {
   }
 }
 
-// プリセットを適用する関数
+// プリセットを適用する関数（変換確認）
 async function applyPreset(preset) {
   try {
+    // 物理ピクセルフラグを確実に設定
+    const presetWithFlag = {
+      ...preset,
+      isPhysicalPixels: true // この値が確実に設定されていることを確認
+    };
+    
+    console.log('プリセット適用:', {
+      名前: preset.name,
+      サイズ: `${preset.width}x${preset.height}`,
+      位置: `(${preset.left},${preset.top})`,
+      物理ピクセル: presetWithFlag.isPhysicalPixels
+    });
+    
     await browser.runtime.sendMessage({
       action: 'applyPreset',
-      preset: preset
+      preset: presetWithFlag
     });
     
     window.close(); // 適用後にポップアップを閉じる
   } catch (err) {
     console.error('プリセット適用エラー:', err);
-    // エラーが発生しても、ウィンドウ操作が成功している可能性があるのでポップアップを閉じる
+    // エラーがあっても閉じる
     window.close();
   }
 }
