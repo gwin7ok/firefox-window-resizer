@@ -239,3 +239,49 @@ label {
   font-weight: bold;
   color: #0060df;
 }
+
+/* 通知スタイル */
+.modal-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 15px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 500;
+  z-index: 1000;
+  animation: fadeInOut 3s ease-in-out;
+}
+
+.modal-notification.success {
+  background-color: #2ea44f;
+}
+
+.modal-notification.error {
+  background-color: #d73a49;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+
+/* デバッグ用ボタン */
+.debug-actions {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.debug-actions .small {
+  font-size: 12px;
+  padding: 3px 8px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  color: #444;
+}
+
+.debug-actions .small:hover {
+  background: #e0e0e0;
+}

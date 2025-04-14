@@ -14,6 +14,12 @@ const DEFAULT_SETTINGS = {
   defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
 };
 
+// DPRが常に1.0で検出される問題に対応するための固定値
+const FIXED_DPR_SETTINGS = {
+  main: 1.25,      // メインモニタは125%
+  secondary: 1.0   // セカンダリモニタは100%
+};
+
 // 初期化処理
 async function initialize() {
   // ストレージをチェックし、初期データがなければ設定
@@ -34,6 +40,7 @@ async function initialize() {
 // 画面情報を取得するためのコンテンツスクリプト実行
 async function getScreenInfo(tabId) {
   try {
+    // Manifest V2では executeScript を使用
     const results = await browser.tabs.executeScript(tabId, {
       code: `
       (function() {
@@ -47,6 +54,14 @@ async function getScreenInfo(tabId) {
       })();
       `
     });
+    
+    // DPRが1.0の場合は固定値を使用
+    if (results[0].dpr === 1.0) {
+      const isSecondary = results[0].left < 0;
+      results[0].dpr = isSecondary ? 1.0 : 1.25; // メインモニタ125%、セカンダリ100%
+      results[0].overridden = true;
+    }
+    
     return results[0];
   } catch (error) {
     console.error("画面情報取得エラー:", error);
@@ -56,51 +71,64 @@ async function getScreenInfo(tabId) {
       height: 1080,
       left: 0,
       top: 0,
-      dpr: 1
+      dpr: 1.25, // デフォルトはメインモニタのDPRを想定
+      overridden: true
     };
   }
 }
 
-// 現在のウィンドウサイズと位置を取得（物理ピクセル単位）
+// 現在のウィンドウサイズと位置を取得（エラー処理強化版）
 async function getCurrentWindowInfo() {
-  // 現在のウィンドウとアクティブタブを取得
-  const win = await browser.windows.getCurrent();
-  const tabs = await browser.tabs.query({ active: true, windowId: win.id });
-  
-  if (tabs.length === 0) {
-    throw new Error("アクティブタブが見つかりません");
+  try {
+    const win = await browser.windows.getCurrent();
+    
+    // アクティブタブを取得
+    const tabs = await browser.tabs.query({ active: true, windowId: win.id });
+    
+    if (tabs.length === 0) {
+      console.warn("アクティブタブが見つからないため、DPR値は固定値を使用します");
+      
+      // モニタ判定（簡易版）
+      const isSecondary = win.left < 0;
+      const fixedDpr = isSecondary ? FIXED_DPR_SETTINGS.secondary : FIXED_DPR_SETTINGS.main;
+      
+      return {
+        width: win.width,
+        height: win.height,
+        left: win.left,
+        top: win.top,
+        dpr: fixedDpr,
+        overridden: true
+      };
+    }
+    
+    // スクリーン情報とDPRを取得
+    const screenInfo = await getScreenInfo(tabs[0].id);
+    
+    return {
+      width: win.width,
+      height: win.height,
+      left: win.left,
+      top: win.top,
+      dpr: screenInfo.dpr || 1.0,
+      overridden: screenInfo.overridden || false
+    };
+  } catch (error) {
+    console.error("ウィンドウ情報取得エラー:", error);
+    
+    // エラー時は固定値を使用
+    const isSecondary = win?.left < 0;
+    const fixedDpr = isSecondary ? FIXED_DPR_SETTINGS.secondary : FIXED_DPR_SETTINGS.main;
+    
+    return {
+      width: win?.width || 1024,
+      height: win?.height || 768,
+      left: win?.left || 0,
+      top: win?.top || 0,
+      dpr: fixedDpr,
+      overridden: true
+    };
   }
-  
-  // スクリーン情報とDPRを取得
-  const screenInfo = await getScreenInfo(tabs[0].id);
-  const dpr = screenInfo.dpr || 1;
-  
-  // 論理ピクセル値（APIから直接取得）
-  const logicalValues = {
-    width: win.width,
-    height: win.height,
-    left: win.left,
-    top: win.top
-  };
-  
-  // 物理ピクセル値（DPRを使用して計算）
-  const physicalValues = {
-    width: Math.round(win.width * dpr),
-    height: Math.round(win.height * dpr),
-    left: Math.round(win.left * dpr),
-    top: Math.round(win.top * dpr)
-  };
-  
-  // モニタ判定（単純に左座標で判断）
-  const isSecondary = win.left < 0;
-  
-  return {
-    logical: logicalValues,
-    physical: physicalValues,
-    dpr: dpr,
-    monitor: isSecondary ? 'secondary' : 'main',
-    screen: screenInfo
-  };
 }
 
 // ブラウザ起動時のデフォルトプリセット適用

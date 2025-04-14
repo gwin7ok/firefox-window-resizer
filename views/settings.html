@@ -115,13 +115,17 @@
               <input type="number" id="secondary-scaling" value="100" min="100" max="500">
             </div>
           </div>
+          <p class="form-helper">※DPR検出値が1.0の場合、この値が優先されます</p>
         </div>
         
         <div id="dpr-container" style="display:none;" class="form-group">
           <div class="info-box">
-            <p>現在のウィンドウ情報を取得しました。</p>
-            <p>デバイスピクセル比率（DPR）: <span id="dpr-info">1.0</span></p>
-            <p>※サイズと位置は物理ピクセル単位で表示されています。</p>
+            <!-- ここにJavaScriptで動的に内容が入ります -->
+          </div>
+          
+          <div class="debug-actions">
+            <button id="copy-dpr-info" class="secondary small">詳細情報をコピー</button>
+            <button id="view-console" class="secondary small">コンソールを表示</button>
           </div>
         </div>
 
@@ -131,6 +135,30 @@
           <button id="modal-cancel">キャンセル</button>
           <button id="modal-save">保存</button>
         </div>
+      </div>
+    </div>
+    
+    <!-- 設定画面の下部に追加 -->
+    <div class="section">
+      <h2>高度な設定</h2>
+      <div class="form-group">
+        <label>モニタスケーリングの検出方法:</label>
+        <select id="dpr-detection-method">
+          <option value="auto">自動検出 (devicePixelRatio)</option>
+          <option value="manual">手動設定を常に使用</option>
+          <option value="enhanced">拡張検出 (複数の方法で検証)</option>
+        </select>
+      </div>
+      
+      <div class="info-box info">
+        <p><strong>ヒント:</strong> DPRが正しく検出されない場合、「手動設定を常に使用」を選択し、OSの拡大率を手動で入力してください。</p>
+        <p>Windows設定画面で確認できるディスプレイの拡大率（125%など）が正確な値です。</p>
+      </div>
+      
+      <div class="debug-info">
+        <p>バージョン: 1.0.0</p>
+        <p>ブラウザ: <span id="browser-info">Firefox</span></p>
+        <p>OS: <span id="os-info">Windows</span></p>
       </div>
     </div>
   </div>

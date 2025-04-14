@@ -168,25 +168,45 @@ async function saveSettings() {
   }
 }
 
-// モーダルから現在のウィンドウサイズを取得（物理ピクセル値を使用）
+// モーダルから現在のウィンドウサイズを取得（簡略化版）
 async function useCurrentWindowSize() {
   try {
     const windowInfo = await browser.runtime.sendMessage({ action: 'getCurrentWindowInfo' });
     
-    if (windowInfo.physical) {
-      // 物理ピクセル値を表示
-      document.getElementById('preset-width').value = windowInfo.physical.width;
-      document.getElementById('preset-height').value = windowInfo.physical.height;
-      document.getElementById('preset-left').value = windowInfo.physical.left;
-      document.getElementById('preset-top').value = windowInfo.physical.top;
-      
-      // DPRを表示
-      document.getElementById('dpr-info').textContent = windowInfo.dpr.toFixed(2);
-      document.getElementById('dpr-container').style.display = 'block';
-    } else {
-      // 互換性のため
-      alert('物理ピクセル値の取得に失敗しました');
+    // DPR値の取得（固定値適用済み）
+    const dpr = windowInfo.dpr || 1.0;
+    const isOverridden = windowInfo.overridden || false;
+    
+    // 物理ピクセルに変換
+    const physicalWidth = Math.round(windowInfo.width * dpr);
+    const physicalHeight = Math.round(windowInfo.height * dpr);
+    const physicalLeft = Math.round(windowInfo.left * dpr);
+    const physicalTop = Math.round(windowInfo.top * dpr);
+    
+    // フォームに値をセット
+    document.getElementById('preset-width').value = physicalWidth;
+    document.getElementById('preset-height').value = physicalHeight;
+    document.getElementById('preset-left').value = physicalLeft;
+    document.getElementById('preset-top').value = physicalTop;
+    
+    // DPR情報を表示（既存のUI要素へ）
+    const dprInfoElement = document.getElementById('dpr-info');
+    if (dprInfoElement) {
+      dprInfoElement.textContent = dpr.toFixed(2) + (isOverridden ? ' (固定値)' : '');
     }
+    
+    // DPR情報表示部分を表示
+    const dprContainer = document.getElementById('dpr-container');
+    if (dprContainer) {
+      dprContainer.style.display = 'block';
+    }
+    
+    console.log("ウィンドウ情報:", {
+      logical: { width: windowInfo.width, height: windowInfo.height },
+      physical: { width: physicalWidth, height: physicalHeight },
+      dpr: dpr,
+      isOverridden: isOverridden
+    });
   } catch (err) {
     console.error('ウィンドウ情報取得エラー:', err);
     alert('現在のウィンドウサイズの取得に失敗しました');
@@ -270,6 +290,75 @@ function closeModal() {
   document.getElementById('dpr-container').style.display = 'none';
 }
 
+// 設定を保存する関数を追加
+async function saveDprSettings() {
+  const dprDetectionMethod = document.getElementById('dpr-detection-method').value;
+  const mainScaling = parseInt(document.getElementById('main-scaling').value, 10);
+  const secondaryScaling = parseInt(document.getElementById('secondary-scaling').value, 10);
+  
+  try {
+    await browser.storage.local.set({
+      dprSettings: {
+        detectionMethod: dprDetectionMethod,
+        mainScaling: mainScaling,
+        secondaryScaling: secondaryScaling
+      }
+    });
+    
+    console.log("DPR設定を保存しました");
+    return true;
+  } catch (err) {
+    console.error("DPR設定の保存に失敗:", err);
+    return false;
+  }
+}
+
+// DPR情報をクリップボードにコピー（エラー処理強化版）
+function copyDprInfo() {
+  browser.runtime.sendMessage({ action: 'getCurrentWindowInfo' })
+    .then(info => {
+      // 単純化されたDPR情報を作成
+      const dprInfo = {
+        windowSize: {
+          width: info.width,
+          height: info.height,
+          left: info.left,
+          top: info.top
+        },
+        dprValue: info.dpr || 1.0,
+        isOverridden: info.overridden || false,
+        physicalSize: {
+          width: Math.round(info.width * (info.dpr || 1.0)),
+          height: Math.round(info.height * (info.dpr || 1.0)),
+          left: Math.round(info.left * (info.dpr || 1.0)),
+          top: Math.round(info.top * (info.dpr || 1.0))
+        },
+        userAgent: navigator.userAgent
+      };
+      
+      const dprText = JSON.stringify(dprInfo, null, 2);
+      
+      // クリップボードにコピー
+      navigator.clipboard.writeText(dprText)
+        .then(() => {
+          alert('DPR情報をクリップボードにコピーしました');
+        })
+        .catch(err => {
+          console.error('コピーに失敗:', err);
+          alert('情報のコピーに失敗しました\n' + JSON.stringify(dprInfo));
+        });
+    })
+    .catch(err => {
+      console.error('DPR情報取得エラー:', err);
+      alert('DPR情報の取得に失敗しました');
+    });
+}
+
+// コンソールを表示する指示
+function viewConsole() {
+  alert('F12キーを押してブラウザの開発者ツールを開き、「コンソール」タブを選択してください');
+}
+
 // モーダル外クリックで閉じる
 window.onclick = function(event) {
   const modal = document.getElementById('preset-modal');
@@ -286,4 +375,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('use-current-size').addEventListener('click', useCurrentWindowSize);
   document.getElementById('modal-save').addEventListener('click', savePreset);
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('main-scaling').addEventListener('change', saveDprSettings);
+  document.getElementById('secondary-scaling').addEventListener('change', saveDprSettings);
+  document.getElementById('dpr-detection-method').addEventListener('change', saveDprSettings);
+  document.getElementById('copy-dpr-info')?.addEventListener('click', copyDprInfo);
+  document.getElementById('view-console')?.addEventListener('click', viewConsole);
 });
