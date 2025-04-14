@@ -150,37 +150,8 @@ function createPresetItem(preset) {
 // プリセットを適用
 async function applyPreset(preset) {
   try {
-    console.group('プリセット適用リクエスト');
+    console.log('プリセット適用リクエスト');
     console.log('適用するプリセット:', preset);
-    
-    // プリセットの検証
-    if (!preset || !preset.width || !preset.height) {
-      throw new Error('無効なプリセットです');
-    }
-    
-    // UI フィードバック
-    const presetElements = document.querySelectorAll('.preset-item');
-    presetElements.forEach(el => {
-      el.style.pointerEvents = 'none'; // クリック防止
-      el.style.opacity = '0.6';        // 薄暗く表示
-    });
-    
-    // 適用中であることを表示
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'status-message';
-    statusDiv.style.padding = '10px';
-    statusDiv.style.backgroundColor = '#e7f1ff';
-    statusDiv.style.textAlign = 'center';
-    statusDiv.style.margin = '5px 0';
-    statusDiv.style.borderRadius = '4px';
-    statusDiv.textContent = `"${preset.name}" を適用しています...`;
-    
-    const container = document.getElementById('presets-container');
-    if (container) {
-      container.insertBefore(statusDiv, container.firstChild);
-    } else {
-      document.body.insertBefore(statusDiv, document.body.firstChild);
-    }
     
     // バックグラウンドスクリプトにメッセージ送信
     const response = await browser.runtime.sendMessage({
@@ -195,38 +166,13 @@ async function applyPreset(preset) {
       throw new Error(response.error);
     }
     
-    // 成功メッセージを表示
-    statusDiv.style.backgroundColor = '#e3ffe3';
-    statusDiv.textContent = `"${preset.name}" を適用しました`;
-    
     console.log('プリセットを適用しました');
-    console.groupEnd();
     
-    // 少し遅延してからポップアップを閉じる（視覚的フィードバックのため）
-    setTimeout(() => window.close(), 800);
+    // ポップアップを閉じる
+    window.close();
   } catch (err) {
     console.error('プリセット適用エラー:', err);
-    console.groupEnd();
-    
-    // エラーメッセージ表示
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.textContent = 'プリセットの適用に失敗しました: ' + err.message;
-    
-    // エラーメッセージを挿入
-    const container = document.getElementById('presets-container');
-    if (container) {
-      container.insertBefore(errorDiv, container.firstChild);
-    } else {
-      document.body.insertBefore(errorDiv, document.body.firstChild);
-    }
-    
-    // UIを元に戻す
-    const presetElements = document.querySelectorAll('.preset-item');
-    presetElements.forEach(el => {
-      el.style.pointerEvents = '';
-      el.style.opacity = '';
-    });
+    alert('プリセットの適用に失敗しました: ' + err.message);
   }
 }
 

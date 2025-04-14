@@ -1,3 +1,35 @@
+// 開発用デバッグ情報
+function showDebugInfo() {
+  console.log('====== Window Resizer デバッグ情報 ======');
+  
+  // DPR設定を表示
+  browser.storage.local.get('systemDpr').then(data => {
+    const systemDpr = data.systemDpr || 100;
+    console.log(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr/100}）`);
+    
+    // プリセット一覧を取得して表示
+    browser.storage.local.get('presets').then(data => {
+      const presets = Array.isArray(data.presets) ? data.presets : [];
+      console.log(`登録プリセット数: ${presets.length}`);
+      
+      // プリセットの詳細情報
+      presets.forEach((preset, index) => {
+        console.log(`[${index+1}] ${preset.name}`);
+        console.log(`  サイズ: ${preset.width}×${preset.height}`);
+        console.log(`  位置: (${preset.left}, ${preset.top})`);
+        
+        console.log(`  物理換算: ${Math.round(preset.width*(systemDpr/100))}×${Math.round(preset.height*(systemDpr/100))}`);
+      });
+    });
+  });
+}
+
+// 起動時に実行
+showDebugInfo();
+
+// 1分ごとに再表示（開発中のみ）
+// setInterval(showDebugInfo, 60000);
+
 // デバッグログを有効化
 browser.storage.local.get('debug').then(data => {
   const isDebugMode = data.debug === true;
@@ -22,6 +54,18 @@ browser.storage.local.get('debug').then(data => {
   console.trace = noop;
 }).catch(err => {
   console.error('デバッグ設定の読み込み中にエラーが発生しました:', err);
+});
+
+// デバッグモード切替機能
+
+// デバッグモードの確認と設定
+browser.storage.local.get('debugMode').then(data => {
+  const isDebugMode = data.debugMode === true;
+  if (isDebugMode) {
+    console.log('[システム] デバッグモードが有効です');
+  }
+}).catch(err => {
+  console.error('デバッグ設定の読み込みエラー:', err);
 });
 
 // プリセットの保存形式
@@ -341,7 +385,6 @@ async function applyPresetToWindow(windowId, preset) {
       height: preset.height,
       left: preset.left, 
       top: preset.top,
-      isPhysicalPixels: preset.isPhysicalPixels === true ? "YES" : "NO"
     });
     
     // 2. ユーザー設定のDPR値を取得
@@ -351,30 +394,19 @@ async function applyPresetToWindow(windowId, preset) {
     // 3. 変換計算
     let logicalWidth, logicalHeight, logicalLeft, logicalTop;
     
-    if (preset.isPhysicalPixels === true) {
-      // 物理ピクセル値をDPRで割って論理値に変換
       logicalWidth = Math.round(preset.width / dpr);
       logicalHeight = Math.round(preset.height / dpr);
       logicalLeft = Math.round(preset.left / dpr);
       logicalTop = Math.round(preset.top / dpr);
       
       console.log("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-    } else {
-      // 既に論理ピクセル値の場合はそのまま使用
-      logicalWidth = preset.width;
-      logicalHeight = preset.height;
-      logicalLeft = preset.left;
-      logicalTop = preset.top;
-      
-      console.log("3. 論理ピクセル値をそのまま使用");
-    }
     
     // 変換計算の詳細を表形式で出力
     console.table({
-      幅: { 元値: preset.width, 計算式: preset.isPhysicalPixels ? `${preset.width} / ${dpr}` : "変換なし", 変換後: logicalWidth },
-      高さ: { 元値: preset.height, 計算式: preset.isPhysicalPixels ? `${preset.height} / ${dpr}` : "変換なし", 変換後: logicalHeight },
-      左位置: { 元値: preset.left, 計算式: preset.isPhysicalPixels ? `${preset.left} / ${dpr}` : "変換なし", 変換後: logicalLeft },
-      上位置: { 元値: preset.top, 計算式: preset.isPhysicalPixels ? `${preset.top} / ${dpr}` : "変換なし", 変換後: logicalTop }
+      幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+      高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+      左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+      上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
     });
     
     // 4. 最終的な適用値を出力
@@ -401,132 +433,10 @@ async function applyPresetToWindow(windowId, preset) {
   }
 }
 
-// 現在のウィンドウにプリセットを適用
-async function applyPresetToCurrentWindow(preset) {
-  try {
-    console.group('プリセット適用処理');
-    console.log('プリセットを適用します:', preset);
-    
-    // プリセットの検証
-    if (!preset || typeof preset !== 'object') {
-      throw new Error('無効なプリセットです');
-    }
-    
-    if (!preset.width || !preset.height) {
-      throw new Error('プリセットにサイズ情報がありません');
-    }
-    
-    // 現在のウィンドウを取得
-    const windowInfo = await browser.windows.getCurrent({populate: false});
-    console.log('現在のウィンドウ情報:', {
-      id: windowInfo.id,
-      width: windowInfo.width,
-      height: windowInfo.height,
-      left: windowInfo.left,
-      top: windowInfo.top
-    });
-    
-    // ユーザー設定のDPR値を取得
-    const data = await browser.storage.local.get('systemDpr');
-    const systemDpr = data.systemDpr || 100;  // デフォルトは100%
-    
-    // DPR値を小数に変換（例：125% → 1.25）
-    const dprFactor = systemDpr / 100;
-    
-    console.log('----------------------------------');
-    console.log('▶ 変換情報:');
-    console.log('   ユーザー設定DPR値:', systemDpr, '%');
-    console.log('   DPR係数:', dprFactor);
-    console.log('   プリセットタイプ:', preset.isPhysicalPixels ? '物理ピクセル' : '論理ピクセル');
-    console.log('----------------------------------');
-    
-    // ★★★ 重要な修正: プリセットの値が物理ピクセルか論理ピクセルかを判断 ★★★
-    let updateParams;
-    
-    if (preset.isPhysicalPixels) {
-      // 値はすでに物理ピクセル - DPRで変換しない
-      console.log('▶ 物理ピクセル値をそのまま使用 (変換なし):');
-      console.log('   幅: ', preset.width, 'px');
-      console.log('   高さ:', preset.height, 'px');
-      console.log('   左位置:', preset.left, 'px');
-      console.log('   上位置:', preset.top, 'px');
-      
-      // 値をそのまま使用
-      updateParams = {
-        width: preset.width,
-        height: preset.height,
-        left: preset.left,
-        top: preset.top
-      };
-      
-      console.log('   論理サイズ換算:', Math.round(preset.width / dprFactor), '×', Math.round(preset.height / dprFactor), 'px');
-    } else {
-      // 論理ピクセルから物理ピクセルへ変換
-      console.log('▶ 論理サイズ (プリセット値):');
-      console.log('   幅: ', preset.width, 'px');
-      console.log('   高さ:', preset.height, 'px');
-      console.log('   左位置:', preset.left, 'px');
-      console.log('   上位置:', preset.top, 'px');
-      
-      // 計算過程を表示
-      console.log('----------------------------------');
-      console.log('▶ 変換計算:');
-      console.log(`   物理幅 = 論理幅 × DPR = ${preset.width} × ${dprFactor} = ${preset.width * dprFactor}`);
-      console.log(`   物理高さ = 論理高さ × DPR = ${preset.height} × ${dprFactor} = ${preset.height * dprFactor}`);
-      console.log(`   物理左位置 = 論理左位置 × DPR = ${preset.left} × ${dprFactor} = ${preset.left * dprFactor}`);
-      console.log(`   物理上位置 = 論理上位置 × DPR = ${preset.top} × ${dprFactor} = ${preset.top * dprFactor}`);
-      
-      // 物理サイズ計算（小数点以下を四捨五入）
-      const physicalWidth = Math.round(preset.width * dprFactor);
-      const physicalHeight = Math.round(preset.height * dprFactor);
-      const physicalLeft = Math.round(preset.left * dprFactor);
-      const physicalTop = Math.round(preset.top * dprFactor);
-      
-      console.log('----------------------------------');
-      console.log('▶ 物理サイズ (変換後):');
-      console.log('   幅: ', physicalWidth, 'px');
-      console.log('   高さ:', physicalHeight, 'px');
-      console.log('   左位置:', physicalLeft, 'px');
-      console.log('   上位置:', physicalTop, 'px');
-      
-      updateParams = {
-        width: physicalWidth,
-        height: physicalHeight,
-        left: physicalLeft,
-        top: physicalTop
-      };
-    }
-    
-    console.log('----------------------------------');
-    console.log('ウィンドウ更新パラメータ:', updateParams);
-    
-    // ウィンドウの更新
-    const updatedWindow = await browser.windows.update(windowInfo.id, updateParams);
-    
-    console.log('----------------------------------');
-    console.log('▶ 更新後のウィンドウ情報:');
-    console.log('   幅: ', updatedWindow.width, 'px (物理)');
-    console.log('   高さ:', updatedWindow.height, 'px (物理)');
-    console.log('   左位置:', updatedWindow.left, 'px (物理)');
-    console.log('   上位置:', updatedWindow.top, 'px (物理)');
-    console.log('   論理換算サイズ:', Math.round(updatedWindow.width / dprFactor), '×', Math.round(updatedWindow.height / dprFactor), 'px');
-    
-    console.groupEnd();
-    return { success: true, window: updatedWindow };
-  } catch (error) {
-    console.error('プリセット適用エラー:', error);
-    console.groupEnd();
-    throw error;
-  }
-}
-
 // プリセットを保存（統一DPR版）
 async function savePreset(preset) {
   try {
     console.group(`プリセット保存: "${preset.name}"（統一DPR）`);
-    
-    // 物理ピクセルフラグを明示的に設定
-    preset.isPhysicalPixels = true;
     
     // 既存コード（プリセット保存処理）
     const data = await browser.storage.local.get('presets');
@@ -572,44 +482,33 @@ async function getPresets() {
   }
 }
 
-// メッセージハンドラを強化
-
-// メッセージハンドラの改善
+// メッセージハンドラ - applyPresetToWindow を使用
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('受信したメッセージ:', message);
   
   try {
-    switch (message.action) {
-      case 'applyPreset':
-        return applyPresetToCurrentWindow(message.preset)
-          .then(result => {
-            console.log('プリセット適用成功');
-            return { ...result, receivedPreset: message.preset };
-          })
-          .catch(error => {
-            console.error('プリセット適用エラー:', error);
-            return { 
-              error: error.message, 
-              receivedPreset: message.preset 
-            };
-          });
+    if (message.action === 'applyPreset') {
+      console.log('プリセット適用リクエスト');
+      console.log('適用するプリセット:', message.preset);
       
-      case 'getPresets':
-        return getPresetsFromStorage();
-      
-      case 'presetSaved':
-        notifySettingsPage(message);
-        return Promise.resolve({ success: true });
-      
-      case 'dprSettingUpdated':
-        console.log(`DPR設定が更新されました: ${message.value}%`);
-        clearDprCache(); // キャッシュをクリア
-        return Promise.resolve({ success: true });
-      
-      default:
-        console.warn('未処理のメッセージタイプ:', message.action);
-        return Promise.resolve({ error: '不明なアクション: ' + message.action });
+      // 現在のウィンドウIDを取得してapplyPresetToWindowを呼び出す
+      return browser.windows.getCurrent()
+        .then(windowInfo => {
+          return applyPresetToWindow(windowInfo.id, message.preset);
+        })
+        .then(result => {
+          console.log('適用結果:', result);
+          return { success: true, window: result, receivedPreset: message.preset };
+        })
+        .catch(error => {
+          console.error('プリセット適用エラー:', error);
+          return { error: error.message, receivedPreset: message.preset };
+        });
     }
+    
+    // 他のアクション...
+    
+    return Promise.resolve({ error: '不明なアクション: ' + message.action });
   } catch (err) {
     console.error('メッセージ処理エラー:', err);
     return Promise.reject(err);

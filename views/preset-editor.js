@@ -111,72 +111,67 @@ function setDefaultValues() {
   document.getElementById('save-preset').textContent = 'プリセットを保存';
 }
 
-// 現在のウィンドウサイズを取得する関数の強化
-
 // 現在のウィンドウサイズとポジションを使用
 async function useCurrentWindowSize() {
   try {
     console.group('現在のウィンドウサイズを取得');
     
-    // 現在のウィンドウの情報を取得
-    const windowInfo = await browser.windows.getCurrent();
-    console.log('現在のウィンドウ情報 (物理サイズ):', {
-      幅: windowInfo.width,
-      高さ: windowInfo.height,
-      左位置: windowInfo.left,
-      上位置: windowInfo.top
-    });
+    // 全てのウィンドウを取得
+    const windows = await browser.windows.getAll();
+    
+    // 現在のポップアップウィンドウを除外し、メインウィンドウを取得
+    // （通常はメインウィンドウがfocusedでないため、Firefoxの場合最初の非ポップアップウィンドウを使用）
+    const mainWindow = windows.find(win => 
+      win.type === 'normal' && !win.incognito && !win.alwaysOnTop && win.state !== 'minimized'
+    );
+    
+    if (!mainWindow) {
+      throw new Error('メインブラウザウィンドウが見つかりませんでした');
+    }
+    
+    console.log('メインブラウザウィンドウ情報:', mainWindow);
     
     // ユーザー設定のDPR値を取得
     const data = await browser.storage.local.get('systemDpr');
     const systemDpr = data.systemDpr || 100;  // デフォルト100%
-    
-    // DPR係数
     const dprFactor = systemDpr / 100;
     
-    console.log('----------------------------------');
-    console.log('▶ 変換情報:');
-    console.log('   ユーザー設定DPR値:', systemDpr, '%');
-    console.log('   DPR係数:', dprFactor);
+    console.log('DPR設定:', systemDpr, '% (係数:', dprFactor, ')');
     
-    console.log('----------------------------------');
-    console.log('▶ 物理サイズ (ブラウザから取得):');
-    console.log('   幅: ', windowInfo.width, 'px');
-    console.log('   高さ:', windowInfo.height, 'px');
-    console.log('   左位置:', windowInfo.left, 'px');
-    console.log('   上位置:', windowInfo.top, 'px');
+    // 論理ピクセル値（ブラウザから取得した値）
+    const logicalValues = {
+      width: mainWindow.width,
+      height: mainWindow.height,
+      left: mainWindow.left,
+      top: mainWindow.top
+    };
     
-    // 計算過程を表示
-    console.log('----------------------------------');
-    console.log('▶ 変換計算:');
-    console.log(`   論理幅 = 物理幅 ÷ DPR = ${windowInfo.width} ÷ ${dprFactor} = ${windowInfo.width / dprFactor}`);
-    console.log(`   論理高さ = 物理高さ ÷ DPR = ${windowInfo.height} ÷ ${dprFactor} = ${windowInfo.height / dprFactor}`);
-    console.log(`   論理左位置 = 物理左位置 ÷ DPR = ${windowInfo.left} ÷ ${dprFactor} = ${windowInfo.left / dprFactor}`);
-    console.log(`   論理上位置 = 物理上位置 ÷ DPR = ${windowInfo.top} ÷ ${dprFactor} = ${windowInfo.top / dprFactor}`);
+    console.log('メインウィンドウサイズ (論理ピクセル):', logicalValues);
     
-    // 物理サイズから論理サイズへの変換（小数点以下を四捨五入）
-    const logicalWidth = Math.round(windowInfo.width / dprFactor);
-    const logicalHeight = Math.round(windowInfo.height / dprFactor);
-    const logicalLeft = Math.round(windowInfo.left / dprFactor);
-    const logicalTop = Math.round(windowInfo.top / dprFactor);
+    // 論理ピクセル → 物理ピクセル変換
+    // プリセットには物理ピクセルで保存
+    const physicalWidth = Math.round(logicalValues.width * dprFactor);
+    const physicalHeight = Math.round(logicalValues.height * dprFactor);
+    const physicalLeft = Math.round(logicalValues.left * dprFactor);
+    const physicalTop = Math.round(logicalValues.top * dprFactor);
     
-    console.log('----------------------------------');
-    console.log('▶ 論理サイズ (変換後):');
-    console.log('   幅: ', logicalWidth, 'px');
-    console.log('   高さ:', logicalHeight, 'px');
-    console.log('   左位置:', logicalLeft, 'px');
-    console.log('   上位置:', logicalTop, 'px');
+    console.log('変換後 (物理ピクセル):', {
+      width: physicalWidth,
+      height: physicalHeight,
+      left: physicalLeft,
+      top: physicalTop
+    });
     
     // フォームに設定
-    document.getElementById('preset-width').value = logicalWidth;
-    document.getElementById('preset-height').value = logicalHeight;
-    document.getElementById('preset-left').value = logicalLeft;
-    document.getElementById('preset-top').value = logicalTop;
+    document.getElementById('preset-width').value = physicalWidth;
+    document.getElementById('preset-height').value = physicalHeight;
+    document.getElementById('preset-left').value = physicalLeft;
+    document.getElementById('preset-top').value = physicalTop;
     
     // 設定したサイズ情報を表示
     const sizeInfoText = document.getElementById('size-info-text');
     if (sizeInfoText) {
-      sizeInfoText.textContent = `現在のウィンドウサイズ ${logicalWidth}×${logicalHeight} と位置 (${logicalLeft}, ${logicalTop}) を設定しました`;
+      sizeInfoText.textContent = `メインウィンドウのサイズ ${physicalWidth}×${physicalHeight} と位置 (${physicalLeft}, ${physicalTop}) を設定しました`;
       sizeInfoText.style.display = 'block';
       
       // 5秒後に非表示
@@ -214,16 +209,14 @@ async function savePreset(event) {
       return;
     }
     
-    // ★★★ 重要: isPhysicalPixelsのフラグを常にfalseに設定 ★★★
-    // プリセットオブジェクトを作成
+    // プリセットオブジェクトを作成 - 
     const preset = {
       id: editId || generatePresetId(),
       name,
       width,
       height,
       left,
-      top,
-      isPhysicalPixels: false // 常に論理ピクセルとして扱う
+      top
     };
     
     // ストレージから既存のプリセットを取得
