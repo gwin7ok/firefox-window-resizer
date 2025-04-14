@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Window Resizer 設定</title>
+  <link rel="stylesheet" href="../styles/settings.css">
+</head>
+<body>
+  <div class="settings-container">
+    <h1>Window Resizer 設定</h1>
+    
+    <div class="section">
+      <h2>プリセット管理</h2>
+      
+      <div class="presets-table-container">
+        <table id="presets-table">
+          <thead>
+            <tr>
+              <th>名前</th>
+              <th>幅 (px)</th>
+              <th>高さ (px)</th>
+              <th>左 (px)</th>
+              <th>上 (px)</th>
+              <th>デフォルト</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="presets-body">
+            <!-- プリセットはJSで動的に追加 -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="presets-actions">
+        <button id="add-preset">新規プリセット追加</button>
+      </div>
+    </div>
+    
+    <!-- プリセット編集モーダル -->
+    <div id="preset-modal" class="modal">
+      <div class="modal-content">
+        <h3 id="modal-title">プリセット編集</h3>
+        
+        <div class="form-group">
+          <label for="preset-name">名前:</label>
+          <input type="text" id="preset-name" placeholder="プリセット名">
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="preset-width">幅 (px):</label>
+            <div class="input-with-button">
+              <input type="number" id="preset-width" placeholder="幅">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="preset-height">高さ (px):</label>
+            <div class="input-with-button">
+              <input type="number" id="preset-height" placeholder="高さ">
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="preset-left">左 (px):</label>
+            <div class="input-with-button">
+              <input type="number" id="preset-left" placeholder="左位置">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="preset-top">上 (px):</label>
+            <div class="input-with-button">
+              <input type="number" id="preset-top" placeholder="上位置">
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="target-monitor">対象モニタ:</label>
+          <select id="target-monitor">
+            <option value="main">メインモニタ</option>
+            <option value="secondary">セカンダリモニタ</option>
+          </select>
+        </div>
+        
+        <div class="form-group" id="current-monitor-container">
+          <label for="current-monitor">現在のモニタ:</label>
+          <select id="current-monitor">
+            <option value="main">メインモニタ</option>
+            <option value="secondary">セカンダリモニタ</option>
+          </select>
+        </div>
+        
+        <div id="scaling-correction-container" style="display:none;">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="apply-scaling-correction"> 
+              モニタの拡大率の違いを補正する
+            </label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>モニタ拡大率設定:</label>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="main-scaling">メインモニタ (%)</label>
+              <input type="number" id="main-scaling" value="125" min="100" max="500">
+            </div>
+            <div class="form-group">
+              <label for="secondary-scaling">セカンダリモニタ (%)</label>
+              <input type="number" id="secondary-scaling" value="100" min="100" max="500">
+            </div>
+          </div>
+        </div>
+        
+        <div id="dpr-container" style="display:none;" class="form-group">
+          <div class="info-box">
+            <p>現在のウィンドウ情報を取得しました。</p>
+            <p>デバイスピクセル比率（DPR）: <span id="dpr-info">1.0</span></p>
+            <p>※サイズと位置は物理ピクセル単位で表示されています。</p>
+          </div>
+        </div>
+
+        <button id="use-current-size">現在のサイズとポジションを使用</button>
+        
+        <div class="modal-actions">
+          <button id="modal-cancel">キャンセル</button>
+          <button id="modal-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="settings.js"></script>
+</body>
+</html>

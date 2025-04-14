@@ -1,0 +1,40 @@
+{
+   "manifest_version": 3,
+   "name": "Window Resizer",
+   "version": "1.0.0",
+   "description": "簡単にブラウザウィンドウのサイズと位置を変更できます",
+   "icons": {
+      "16": "assets/icons/icon-16.png",
+      "48": "assets/icons/icon-48.png",
+      "96": "assets/icons/icon-96.png"
+   },
+   "action": {
+      "default_icon": {
+         "16": "assets/icons/icon-16.png",
+         "32": "assets/icons/icon-32.png"
+      },
+      "default_popup": "views/popup.html"
+   },
+   "background": {
+      "scripts": ["scripts/background.js"]
+   },
+   "permissions": [
+      "storage",
+      "tabs",
+      "activeTab",
+      "scripting"
+   ],
+   "host_permissions": [
+      "<all_urls>"
+   ],
+   "options_ui": {
+      "page": "views/settings.html",
+      "open_in_tab": true
+   },
+   "browser_specific_settings": {
+      "gecko": {
+         "id": "window-resizer@example.com",
+         "strict_min_version": "109.0"
+      }
+   }
+}
