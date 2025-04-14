@@ -359,6 +359,59 @@ function viewConsole() {
   alert('F12キーを押してブラウザの開発者ツールを開き、「コンソール」タブを選択してください');
 }
 
+// 現在のDPRを検出するボタン用関数
+async function detectCurrentDpr() {
+  try {
+    // DPR情報表示エリア
+    const dprContainer = document.getElementById('dpr-container');
+    if (dprContainer) {
+      dprContainer.style.display = 'block';
+    }
+    
+    // 情報ボックス
+    const infoBox = document.querySelector('.info-box');
+    if (infoBox) {
+      infoBox.innerHTML = '<p>検出中...</p>';
+    }
+    
+    // バックグラウンドスクリプトに現在のウィンドウ情報取得をリクエスト
+    const windowInfo = await browser.runtime.sendMessage({ action: 'getCurrentWindowInfo' });
+    
+    // DPR情報取得
+    const dpr = windowInfo.dpr || 1.0;
+    const isOverridden = windowInfo.overridden || false;
+    
+    // 情報を表示
+    if (infoBox) {
+      infoBox.innerHTML = `
+        <p>現在のウィンドウ情報を取得しました。</p>
+        <p>デバイスピクセル比（DPR）: <b>${dpr.toFixed(2)}</b> ${isOverridden ? '(手動設定値)' : ''}</p>
+        <p>※サイズと位置は物理ピクセル単位（DPR補正済み）で表示されています。</p>
+        <p><small>詳細情報はブラウザのコンソールログに出力されています。</small></p>
+      `;
+    }
+    
+    // 物理ピクセルに変換
+    const physicalWidth = Math.round(windowInfo.width * dpr);
+    const physicalHeight = Math.round(windowInfo.height * dpr);
+    const physicalLeft = Math.round(windowInfo.left * dpr);
+    const physicalTop = Math.round(windowInfo.top * dpr);
+    
+    console.log("ウィンドウ情報:", {
+      logical: { width: windowInfo.width, height: windowInfo.height },
+      physical: { width: physicalWidth, height: physicalHeight },
+      dpr: dpr,
+      isOverridden: isOverridden
+    });
+    
+    return dpr;
+  } catch (err) {
+    console.error('DPR検出エラー:', err);
+    alert('DPRの検出に失敗しました。詳細はコンソールログを確認してください。');
+    return 1.25; // デフォルト値
+  }
+}
+
 // モーダル外クリックで閉じる
 window.onclick = function(event) {
   const modal = document.getElementById('preset-modal');
@@ -380,4 +433,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('dpr-detection-method').addEventListener('change', saveDprSettings);
   document.getElementById('copy-dpr-info')?.addEventListener('click', copyDprInfo);
   document.getElementById('view-console')?.addEventListener('click', viewConsole);
+  
+  // DPR検出ボタン
+  const detectDprBtn = document.getElementById('detect-dpr');
+  if (detectDprBtn) {
+    detectDprBtn.addEventListener('click', detectCurrentDpr);
+  }
+  
+  // 元々あるかもしれない他のDPR関連ボタン
+  const currentDprBtn = document.getElementById('current-dpr');
+  if (currentDprBtn) {
+    currentDprBtn.addEventListener('click', detectCurrentDpr);
+  }
 });
