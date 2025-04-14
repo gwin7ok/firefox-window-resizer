@@ -23,6 +23,34 @@ const FIXED_DPR_SETTINGS = {
 // 起動時のデフォルトプリセット適用フラグ
 const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
 
+// デバッグレベル設定
+const DEBUG_LEVEL = {
+  NONE: 0,    // 重要なメッセージのみ
+  ERROR: 1,   // エラーも表示
+  WARN: 2,    // 警告も表示
+  INFO: 3,    // 情報も表示
+  DEBUG: 4    // すべて表示
+};
+
+// 現在のデバッグレベル
+const CURRENT_DEBUG_LEVEL = DEBUG_LEVEL.INFO;
+
+// ロガー関数
+const logger = {
+  debug: (...args) => {
+    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.DEBUG) console.debug(...args);
+  },
+  info: (...args) => {
+    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.INFO) console.log(...args);
+  },
+  warn: (...args) => {
+    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.WARN) console.warn(...args);
+  },
+  error: (...args) => {
+    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.ERROR) console.error(...args);
+  }
+};
+
 // 初期化処理
 async function initialize() {
   try {
@@ -31,12 +59,12 @@ async function initialize() {
     
     if (!data.presets) {
       await browser.storage.local.set({ presets: DEFAULT_PRESETS });
-      console.log("デフォルトプリセットを初期化しました");
+      logger.info("デフォルトプリセットを初期化しました");
     }
     
     if (!data.settings) {
       await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
-      console.log("デフォルト設定を初期化しました");
+      logger.info("デフォルト設定を初期化しました");
     }
     
     // ※安全のため、起動時のプリセット適用はスキップ
@@ -44,91 +72,101 @@ async function initialize() {
       // 遅延実行して安定化を図る
       setTimeout(() => {
         applyDefaultPresetIfNeeded().catch(err => {
-          console.error("デフォルトプリセット適用エラー:", err);
+          logger.error("デフォルトプリセット適用エラー:", err);
         });
       }, 1500);
     } else {
-      console.log("起動時のデフォルトプリセット適用をスキップしました");
+      logger.info("起動時のデフォルトプリセット適用をスキップしました");
     }
   } catch (error) {
-    console.error("初期化エラー:", error);
+    logger.error("初期化エラー:", error);
   }
 }
 
-// 画面情報を取得するためのコンテンツスクリプト実行（エラー対策強化版）
+// 画面情報を取得するための関数（エラー表示抑制版）
 async function getScreenInfo(tabId) {
   try {
-    // タブチェック
+    // タブチェック - 拡張機能ページやabout:ページでは実行不可
     try {
       const tab = await browser.tabs.get(tabId);
+      const restrictedUrls = ["moz-extension:", "about:", "chrome:", "resource:"];
       
-      // about:やmoz-extension:などのURLではスクリプト実行不可
-      if (!tab.url || tab.url.startsWith("about:") || tab.url.startsWith("moz-extension:")) {
-        console.warn("スクリプト実行不可のURL:", tab.url);
-        throw new Error("このタブではスクリプトを実行できません");
+      if (!tab.url || restrictedUrls.some(prefix => tab.url.startsWith(prefix))) {
+        // 静かに失敗 - 警告ログのみ
+        if (tab.url) {
+          logger.warn(`非対応URL(${tab.url})のため、固定DPR値を使用します`);
+        }
+        throw new Error("非対応URL");
       }
     } catch (tabError) {
-      console.warn("タブ情報取得エラー:", tabError);
-      throw new Error("無効なタブIDです");
+      // 静かに失敗して固定値を返す
+      return {
+        width: 1920,
+        height: 1080,
+        left: 0,
+        top: 0,
+        dpr: 1.25, // デフォルト値
+        overridden: true,
+        isDefault: true
+      };
     }
     
     // コンテンツスクリプト実行
-    const results = await browser.tabs.executeScript(tabId, {
-      code: `
-      (function() {
-        try {
-          return {
-            success: true,
-            width: window.screen.availWidth || 1920,
-            height: window.screen.availHeight || 1080,
-            left: window.screen.availLeft || 0,
-            top: window.screen.availTop || 0,
-            dpr: window.devicePixelRatio || 1
-          };
-        } catch (e) {
-          return { 
-            success: false,
-            error: e.message,
-            dpr: 1
-          };
-        }
-      })();
-      `,
-      runAt: "document_end"
-    });
-    
-    // 結果チェック
-    if (!results || results.length === 0) {
-      console.warn("executeScript結果が空です");
-      throw new Error("コンテンツスクリプトの結果が得られませんでした");
+    try {
+      const results = await browser.tabs.executeScript(tabId, {
+        code: `
+        (function() {
+          try {
+            return {
+              width: window.screen.availWidth || 1920,
+              height: window.screen.availHeight || 1080,
+              left: window.screen.availLeft || 0,
+              top: window.screen.availTop || 0,
+              dpr: window.devicePixelRatio || 1
+            };
+          } catch (e) {
+            return null;
+          }
+        })();
+        `,
+        runAt: "document_end"
+      });
+      
+      // 結果チェック
+      if (!results || results.length === 0 || !results[0]) {
+        throw new Error("スクリプト実行結果が無効です");
+      }
+      
+      // DPRが1.0の場合は固定値を使用
+      if (results[0].dpr === 1.0) {
+        // モニタの位置で判断（左がマイナスならセカンダリモニタ）
+        const isSecondary = results[0].left < 0;
+        const dprSettings = { main: 1.25, secondary: 1.0 };
+        results[0].dpr = isSecondary ? dprSettings.secondary : dprSettings.main;
+        results[0].overridden = true;
+      }
+      
+      return results[0];
+    } catch (scriptError) {
+      // executeScript失敗 - 静かに固定値を返す
+      return {
+        width: 1920,
+        height: 1080,
+        left: 0,
+        top: 0,
+        dpr: 1.25,
+        overridden: true,
+        isDefault: true
+      };
     }
-    
-    // エラーチェック
-    if (results[0] && !results[0].success) {
-      console.warn("コンテンツスクリプト内でエラー:", results[0].error);
-      throw new Error(results[0].error || "コンテンツスクリプトでエラーが発生しました");
-    }
-    
-    // DPRが1.0の場合は固定値を使用
-    if (results[0] && results[0].dpr === 1.0) {
-      // モニタの位置で判断（左がマイナスならセカンダリモニタ）
-      const isSecondary = results[0].left < 0;
-      results[0].dpr = isSecondary ? FIXED_DPR_SETTINGS.secondary : FIXED_DPR_SETTINGS.main;
-      results[0].overridden = true;
-      console.log(`DPRが1.0のため固定値(${results[0].dpr})を使用します`);
-    }
-    
-    return results[0];
   } catch (error) {
-    console.error("画面情報取得エラー:", error);
-    
-    // エラー時は固定値を返す
+    // すべての例外をここでキャッチし、静かにデフォルト値を返す
     return {
       width: 1920,
       height: 1080,
       left: 0,
       top: 0,
-      dpr: FIXED_DPR_SETTINGS.main, // デフォルト値：メインモニタのDPR
+      dpr: 1.25,
       overridden: true,
       isDefault: true
     };
@@ -144,7 +182,7 @@ async function getCurrentWindowInfo() {
     const tabs = await browser.tabs.query({ active: true, windowId: win.id });
     
     if (tabs.length === 0) {
-      console.warn("アクティブタブが見つからないため、DPR値は固定値を使用します");
+      logger.warn("アクティブタブが見つからないため、DPR値は固定値を使用します");
       
       // モニタ判定（簡易版）
       const isSecondary = win.left < 0;
@@ -172,7 +210,7 @@ async function getCurrentWindowInfo() {
       overridden: screenInfo.overridden || false
     };
   } catch (error) {
-    console.error("ウィンドウ情報取得エラー:", error);
+    logger.error("ウィンドウ情報取得エラー:", error);
     
     // エラー時は固定値を使用
     const isSecondary = win?.left < 0;
@@ -197,7 +235,7 @@ async function applyDefaultPresetIfNeeded() {
   if (settings && settings.defaultPresetId !== null && presets) {
     const defaultPreset = presets.find(preset => preset.id === settings.defaultPresetId);
     if (defaultPreset) {
-      console.log("デフォルトプリセットを適用します:", defaultPreset);
+      logger.info("デフォルトプリセットを適用します:", defaultPreset);
       
       // 現在のウィンドウに適用
       const windows = await browser.windows.getAll();
@@ -208,7 +246,7 @@ async function applyDefaultPresetIfNeeded() {
   }
 }
 
-// ウィンドウにプリセットを適用（エラー処理強化版）
+// ウィンドウにプリセットを適用（エラーログ抑制版）
 async function applyPresetToWindow(windowId, preset) {
   try {
     // 現在のタブの情報を取得してDPRを調べる
@@ -219,18 +257,13 @@ async function applyPresetToWindow(windowId, preset) {
       const tabs = await browser.tabs.query({ active: true, windowId: windowId });
       
       if (tabs.length > 0) {
-        // DPRを取得
+        // DPRを取得（エラーは内部で処理される）
         const screenInfo = await getScreenInfo(tabs[0].id);
-        if (screenInfo) {
-          dpr = screenInfo.dpr || 1.25;
-          dprSource = screenInfo.overridden ? "固定値" : "検出値";
-        }
-      } else {
-        console.warn("アクティブタブが見つかりません");
+        dpr = screenInfo.dpr || 1.25;
+        dprSource = screenInfo.overridden ? "固定値" : "検出値";
       }
     } catch (tabError) {
-      console.warn("DPR取得エラー:", tabError);
-      // エラーが発生しても処理を継続
+      // エラーを抑制
     }
     
     // プリセットの位置から判断（負の値はセカンダリモニタ）
@@ -239,7 +272,7 @@ async function applyPresetToWindow(windowId, preset) {
       dprSource = "セカンダリモニタ用デフォルト値";
     }
     
-    console.log(`プリセット適用: DPR=${dpr}(${dprSource})で変換します`, preset);
+    logger.info(`プリセット適用: DPR=${dpr}(${dprSource})で変換します`, preset);
     
     // 物理ピクセル値を論理ピクセル値に変換（DPRで割る）
     const logicalWidth = Math.round(preset.width / dpr);
@@ -248,8 +281,8 @@ async function applyPresetToWindow(windowId, preset) {
     const logicalTop = Math.round(preset.top / dpr);
     
     // デバッグログ
-    console.log("物理ピクセル値:", { width: preset.width, height: preset.height, left: preset.left, top: preset.top });
-    console.log("論理ピクセル値:", { width: logicalWidth, height: logicalHeight, left: logicalLeft, top: logicalTop });
+    logger.debug("物理ピクセル値:", { width: preset.width, height: preset.height, left: preset.left, top: preset.top });
+    logger.debug("論理ピクセル値:", { width: logicalWidth, height: logicalHeight, left: logicalLeft, top: logicalTop });
     
     // ブラウザAPIには論理ピクセル値を渡す
     return await browser.windows.update(windowId, {
@@ -259,7 +292,7 @@ async function applyPresetToWindow(windowId, preset) {
       top: logicalTop
     });
   } catch (error) {
-    console.error("プリセット適用エラー:", error);
+    logger.error("プリセット適用エラー:", error);
     
     try {
       // エラー時は直接変換して適用を試みる（最終手段）
@@ -270,8 +303,6 @@ async function applyPresetToWindow(windowId, preset) {
       const logicalLeft = Math.round(preset.left / fixedDpr);
       const logicalTop = Math.round(preset.top / fixedDpr);
       
-      console.warn("復旧処理: 固定DPR値でプリセットを適用します:", fixedDpr);
-      
       return await browser.windows.update(windowId, {
         width: logicalWidth,
         height: logicalHeight,
@@ -279,7 +310,6 @@ async function applyPresetToWindow(windowId, preset) {
         top: logicalTop
       });
     } catch (fallbackError) {
-      console.error("復旧処理も失敗:", fallbackError);
       throw error; // 元のエラーをスロー
     }
   }
@@ -325,12 +355,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return getCurrentWindowInfo();
       
     case 'applyPreset':
-      console.log("プリセット適用リクエスト受信:", message.preset);
+      logger.info("プリセット適用リクエスト受信:", message.preset);
       return browser.windows.getCurrent().then(win => 
         applyPresetToWindow(win.id, message.preset)).then(() => true);
       
     case 'savePreset':
-      console.log("プリセット保存リクエスト受信:", message.preset);
+      logger.info("プリセット保存リクエスト受信:", message.preset);
       return savePreset(message.preset);
   }
 });

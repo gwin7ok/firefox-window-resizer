@@ -32,26 +32,19 @@ async function loadPresets() {
   }
 }
 
-// プリセットを適用
+// プリセットを適用する関数
 async function applyPreset(preset) {
   try {
-    console.log("適用するプリセット:", preset);
-    
-    // 物理ピクセルとして保存されていることを明示
-    const presetWithFlag = {
-      ...preset,
-      isPhysicalPixels: true  // この値でbackgroundスクリプトに物理ピクセル値であることを伝える
-    };
-    
-    await browser.runtime.sendMessage({ 
+    await browser.runtime.sendMessage({
       action: 'applyPreset',
-      preset: presetWithFlag
+      preset: preset
     });
     
     window.close(); // 適用後にポップアップを閉じる
   } catch (err) {
     console.error('プリセット適用エラー:', err);
-    alert('ウィンドウサイズの変更に失敗しました');
+    // エラーが発生しても、ウィンドウ操作が成功している可能性があるのでポップアップを閉じる
+    window.close();
   }
 }
 
