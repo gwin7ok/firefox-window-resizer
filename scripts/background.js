@@ -16,15 +16,19 @@ function showDebugInfo() {
     // プリセット一覧を取得して表示
     browser.storage.local.get('presets').then(data => {
       const presets = Array.isArray(data.presets) ? data.presets : [];
-      Logger.info(`登録プリセット数: ${presets.length}`);
       
-      // プリセットの詳細情報
-      presets.forEach((preset, index) => {
-        Logger.info(`[${index+1}] ${preset.name}`);
-        Logger.info(`  サイズ: ${preset.width}×${preset.height}`);
-        Logger.info(`  位置: (${preset.left}, ${preset.top})`);
+      // プリセットの詳細情報をグループ化して出力
+      Logger.logPresetOperation('登録状況', () => {
+        Logger.info(`登録プリセット数: ${presets.length}`);
         
-        Logger.info(`  物理換算: ${Math.round(preset.width*(systemDpr/100))}×${Math.round(preset.height*(systemDpr/100))}`);
+        // プリセットの詳細情報
+        presets.forEach((preset, index) => {
+          Logger.info(`[${index+1}] ${preset.name}`);
+          Logger.info(`  サイズ: ${preset.width}×${preset.height}`);
+          Logger.info(`  位置: (${preset.left}, ${preset.top})`);
+          
+          Logger.info(`  物理換算: ${Math.round(preset.width*(systemDpr/100))}×${Math.round(preset.height*(systemDpr/100))}`);
+        });
       });
     });
   });

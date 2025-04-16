@@ -120,78 +120,85 @@ function setDefaultValues() {
 // 現在のウィンドウサイズとポジションを使用
 async function useCurrentWindowSize() {
   try {
-    Logger.logWindowOperation('サイズ取得', () => {
-      Logger.info('現在のウィンドウサイズを取得');
-    });
-    
-    // 全てのウィンドウを取得
-    const windows = await browser.windows.getAll();
-    
-    // 現在のポップアップウィンドウを除外し、メインウィンドウを取得
-    // （通常はメインウィンドウがfocusedでないため、Firefoxの場合最初の非ポップアップウィンドウを使用）
-    const mainWindow = windows.find(win => 
-      win.type === 'normal' && !win.incognito && !win.alwaysOnTop && win.state !== 'minimized'
-    );
-    
-    if (!mainWindow) {
-      throw new Error('メインブラウザウィンドウが見つかりませんでした');
-    }
-    
-    Logger.info('メインブラウザウィンドウ情報:', mainWindow);
-    
-    // ユーザー設定のDPR値を取得
-    const data = await browser.storage.local.get('systemDpr');
-    const systemDpr = data.systemDpr || 100;  // デフォルト100%
-    const dprFactor = systemDpr / 100;
-    
-    Logger.info('DPR設定:', systemDpr, '% (係数:', dprFactor, ')');
-    
-    // 論理ピクセル値（ブラウザから取得した値）
-    const logicalValues = {
-      width: mainWindow.width,
-      height: mainWindow.height,
-      left: mainWindow.left,
-      top: mainWindow.top
-    };
-    
-    Logger.info('メインウィンドウサイズ (論理ピクセル):', logicalValues);
-    
-    // 論理ピクセル → 物理ピクセル変換
-    // プリセットには物理ピクセルで保存
-    const physicalWidth = Math.round(logicalValues.width * dprFactor);
-    const physicalHeight = Math.round(logicalValues.height * dprFactor);
-    const physicalLeft = Math.round(logicalValues.left * dprFactor);
-    const physicalTop = Math.round(logicalValues.top * dprFactor);
-    
-    Logger.info('変換後 (物理ピクセル):', {
-      width: physicalWidth,
-      height: physicalHeight,
-      left: physicalLeft,
-      top: physicalTop
-    });
-    
-    // フォームに設定
-    document.getElementById('preset-width').value = physicalWidth;
-    document.getElementById('preset-height').value = physicalHeight;
-    document.getElementById('preset-left').value = physicalLeft;
-    document.getElementById('preset-top').value = physicalTop;
-    
-    // 設定したサイズ情報を表示
-    const sizeInfoText = document.getElementById('size-info-text');
-    if (sizeInfoText) {
-      sizeInfoText.textContent = `メインウィンドウのサイズ ${physicalWidth}×${physicalHeight} と位置 (${physicalLeft}, ${physicalTop}) を設定しました`;
-      sizeInfoText.style.display = 'block';
+    Logger.logWindowOperation('現在のサイズを取得', async () => {
+      // 1. 全てのウィンドウを取得
+      const windows = await browser.windows.getAll();
       
-      // 5秒後に非表示
-      setTimeout(() => {
-        sizeInfoText.style.display = 'none';
-      }, 5000);
-    }
-    
-    Logger.endGroup();
+      // メインウィンドウを取得
+      const mainWindow = windows.find(win => 
+        win.type === 'normal' && !win.incognito && !win.alwaysOnTop && win.state !== 'minimized'
+      );
+      
+      if (!mainWindow) {
+        throw new Error('メインブラウザウィンドウが見つかりませんでした');
+      }
+      
+      // 1. 元のウィンドウ情報を表示
+      Logger.info("1. メインブラウザウィンドウ情報:", mainWindow);
+      
+      // 論理ピクセル値（ブラウザから取得した値）
+      const logicalValues = {
+        width: mainWindow.width,
+        height: mainWindow.height,
+        left: mainWindow.left,
+        top: mainWindow.top
+      };
+      
+      Logger.info('メインウィンドウサイズ (論理ピクセル):', logicalValues);
+      
+      // 2. ユーザー設定のDPR値を取得
+      const data = await browser.storage.local.get('systemDpr');
+      const systemDpr = data.systemDpr || 100;  // デフォルト100%
+      const dprFactor = systemDpr / 100;
+      
+      Logger.info(`2. ユーザー設定のDPR値: ${dprFactor} (拡大率: ${systemDpr}%)`);
+      
+      // 3. 論理ピクセル値を物理ピクセル値に変換
+      const physicalWidth = Math.round(logicalValues.width * dprFactor);
+      const physicalHeight = Math.round(logicalValues.height * dprFactor);
+      const physicalLeft = Math.round(logicalValues.left * dprFactor);
+      const physicalTop = Math.round(logicalValues.top * dprFactor);
+      
+      Logger.info("3. 論理ピクセル値にDPRをかけて物理ピクセル値に変換");
+      
+      // 変換計算の詳細をテーブル形式で出力
+      Logger.table({
+        幅: { 元値: logicalValues.width, 計算式: `${logicalValues.width} * ${dprFactor}`, 変換後: physicalWidth },
+        高さ: { 元値: logicalValues.height, 計算式: `${logicalValues.height} * ${dprFactor}`, 変換後: physicalHeight },
+        左位置: { 元値: logicalValues.left, 計算式: `${logicalValues.left} * ${dprFactor}`, 変換後: physicalLeft },
+        上位置: { 元値: logicalValues.top, 計算式: `${logicalValues.top} * ${dprFactor}`, 変換後: physicalTop }
+      });
+      
+      // 4. 最終的な値を表示
+      const finalValues = {
+        width: physicalWidth,
+        height: physicalHeight,
+        left: physicalLeft,
+        top: physicalTop
+      };
+      
+      Logger.info("4. フォームに設定する物理ピクセル値:", finalValues);
+      
+      // フォームに設定
+      document.getElementById('preset-width').value = physicalWidth;
+      document.getElementById('preset-height').value = physicalHeight;
+      document.getElementById('preset-left').value = physicalLeft;
+      document.getElementById('preset-top').value = physicalTop;
+      
+      // 設定したサイズ情報を表示
+      const sizeInfoText = document.getElementById('size-info-text');
+      if (sizeInfoText) {
+        sizeInfoText.textContent = `メインウィンドウのサイズ ${physicalWidth}×${physicalHeight} と位置 (${physicalLeft}, ${physicalTop}) を設定しました`;
+        sizeInfoText.style.display = 'block';
+        
+        // 5秒後に非表示
+        setTimeout(() => {
+          sizeInfoText.style.display = 'none';
+        }, 5000);
+      }
+    });
   } catch (err) {
     Logger.error('ウィンドウサイズの取得エラー:', err);
-    Logger.endGroup();
     alert('ウィンドウサイズの取得に失敗しました: ' + err.message);
   }
 }
