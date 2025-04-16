@@ -186,13 +186,6 @@ function clearDprCache() {
   console.log('DPR設定キャッシュをクリアしました');
 }
 
-// DPRキャッシュをクリア
-function clearDprCache() {
-  // キャッシュをクリア（キャッシュ変数がある場合）
-  console.log('DPRキャッシュをクリアしました');
-  // 必要に応じて追加実装
-}
-
 // 論理⇔物理ピクセル変換用のユーティリティ関数
 
 // 論理ピクセルから物理ピクセルへの変換
@@ -475,53 +468,9 @@ async function getCurrentWindowId() {
 async function getPresets() {
   try {
     const data = await browser.storage.local.get('presets');
-    return data.presets || [];
+    return Array.isArray(data.presets) ? data.presets : [];
   } catch (error) {
     console.error('プリセット取得エラー:', error);
-    return [];
-  }
-}
-
-// メッセージハンドラ - applyPresetToWindow を使用
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('受信したメッセージ:', message);
-  
-  try {
-    if (message.action === 'applyPreset') {
-      console.log('プリセット適用リクエスト');
-      console.log('適用するプリセット:', message.preset);
-      
-      // 現在のウィンドウIDを取得してapplyPresetToWindowを呼び出す
-      return browser.windows.getCurrent()
-        .then(windowInfo => {
-          return applyPresetToWindow(windowInfo.id, message.preset);
-        })
-        .then(result => {
-          console.log('適用結果:', result);
-          return { success: true, window: result, receivedPreset: message.preset };
-        })
-        .catch(error => {
-          console.error('プリセット適用エラー:', error);
-          return { error: error.message, receivedPreset: message.preset };
-        });
-    }
-    
-    // 他のアクション...
-    
-    return Promise.resolve({ error: '不明なアクション: ' + message.action });
-  } catch (err) {
-    console.error('メッセージ処理エラー:', err);
-    return Promise.reject(err);
-  }
-});
-
-// ストレージからプリセットを取得
-async function getPresetsFromStorage() {
-  try {
-    const data = await browser.storage.local.get('presets');
-    return Array.isArray(data.presets) ? data.presets : [];
-  } catch (err) {
-    console.error('プリセット取得エラー:', err);
     return [];
   }
 }
@@ -581,7 +530,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
   try {
     // 現在の設定を確認
     const data = await browser.storage.local.get('systemDpr');
-    console.log('現在のストレージ内容:', data);
+    logger.debug('現在のストレージ内容:', data);
     
     // インストール時、または設定がない場合
     if (details.reason === 'install' || data.systemDpr === undefined) {
@@ -607,5 +556,20 @@ browser.storage.onChanged.addListener((changes, area) => {
     console.log('ストレージ変更検知:', changes.systemDpr);
     console.log(`DPR設定変更: ${changes.systemDpr.oldValue || '未設定'} -> ${changes.systemDpr.newValue}%`);
     clearDprCache(); // キャッシュをクリア
+  }
+});
+
+browser.runtime.onMessage.addListener(async (message, sender) => {
+  console.log('メッセージを受信:', message);
+
+  if (message.action === 'applyPreset') {
+    try {
+      const windowId = await getCurrentWindowId();
+      await applyPresetToWindow(windowId, message.preset);
+      return { success: true };
+    } catch (error) {
+      console.error('プリセット適用エラー:', error);
+      return { error: error.message };
+    }
   }
 });
