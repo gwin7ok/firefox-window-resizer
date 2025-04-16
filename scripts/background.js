@@ -640,8 +640,7 @@ browser.runtime.onInstalled.addListener(details => {
       const defaultPreset = {
         name: DEFAULT_PRESET_NAME,
         width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
-        isPhysical: false
+        height: DEFAULT_HEIGHT
       };
       browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
     }

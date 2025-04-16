@@ -14,9 +14,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   // メッセージリスナーを設定
   setupMessageListeners();
   
-  // デバッグボタンの追加
-  addDebugButton();
-  
+   
   console.log('設定画面の初期化が完了しました');
 });
 
@@ -309,84 +307,3 @@ async function saveDprSetting() {
   }
 }
 
-// デバッグボタンを追加
-function addDebugButton() {
-  const container = document.querySelector('.settings-container') || document.body;
-  
-  // セクションを作成
-  const debugSection = document.createElement('div');
-  debugSection.style.marginTop = '30px';
-  debugSection.style.padding = '15px';
-  debugSection.style.borderTop = '1px solid #ddd';
-  
-  const debugTitle = document.createElement('h3');
-  debugTitle.textContent = '開発者向け';
-  debugTitle.style.marginTop = '0';
-  
-  const debugButton = document.createElement('button');
-  debugButton.textContent = '変換テスト実行';
-  debugButton.className = 'button';
-  debugButton.style.marginRight = '10px';
-  
-  // 結果表示エリア
-  const resultArea = document.createElement('pre');
-  resultArea.id = 'debug-result';
-  resultArea.style.marginTop = '10px';
-  resultArea.style.padding = '10px';
-  resultArea.style.backgroundColor = '#f5f5f5';
-  resultArea.style.border = '1px solid #ddd';
-  resultArea.style.maxHeight = '300px';
-  resultArea.style.overflow = 'auto';
-  resultArea.style.display = 'none';
-  
-  // テスト実行
-  debugButton.addEventListener('click', async () => {
-    try {
-      // DPR取得
-      const dprData = await browser.storage.local.get('systemDpr');
-      const systemDpr = dprData.systemDpr || 100;
-      const dprFactor = systemDpr / 100;
-      
-      // テストデータ
-      const testSizes = [
-        { type: '論理ピクセル', width: 1000, height: 700 },
-        { type: '物理ピクセル', width: 1000, height: 700, isPhysical: true }
-      ];
-      
-      // 結果表示
-      let result = `DPR設定: ${systemDpr}%（係数: ${dprFactor}）\n\n`;
-      
-      testSizes.forEach(test => {
-        result += `== ${test.type} 変換テスト ==\n`;
-        result += `入力値: ${test.width}×${test.height}\n`;
-        
-        if (test.isPhysical) {
-          // 物理→論理
-          const logicalWidth = Math.round(test.width / dprFactor);
-          const logicalHeight = Math.round(test.height / dprFactor);
-          result += `物理→論理変換: ${logicalWidth}×${logicalHeight}\n`;
-        } else {
-          // 論理→物理
-          const physicalWidth = Math.round(test.width * dprFactor);
-          const physicalHeight = Math.round(test.height * dprFactor);
-          result += `論理→物理変換: ${physicalWidth}×${physicalHeight}\n`;
-        }
-        
-        result += '\n';
-      });
-      
-      // 結果を表示
-      const resultElement = document.getElementById('debug-result');
-      resultElement.textContent = result;
-      resultElement.style.display = 'block';
-      
-    } catch (err) {
-      alert('テスト実行エラー: ' + err.message);
-    }
-  });
-  
-  debugSection.appendChild(debugTitle);
-  debugSection.appendChild(debugButton);
-  debugSection.appendChild(resultArea);
-  container.appendChild(debugSection);
-}
