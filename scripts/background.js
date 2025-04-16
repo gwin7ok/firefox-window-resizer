@@ -84,8 +84,7 @@ const DEFAULT_SETTINGS = {
   defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
 };
 
-// 統一DPR値の設定（システム全体で一貫した値を使用）
-const UNIFIED_DPR = 1.25; // WindowsのデフォルトDPR値
+
 
 // 起動時のデフォルトプリセット適用フラグ
 const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
@@ -475,31 +474,7 @@ async function getPresets() {
   }
 }
 
-// 設定ページに通知
-function notifySettingsPage(message) {
-  try {
-    // 設定タブを探す
-    browser.tabs.query({}).then(tabs => {
-      const settingsTabs = tabs.filter(tab => 
-        tab.url && tab.url.includes('settings.html')
-      );
-      
-      if (settingsTabs.length > 0) {
-        // 見つかったタブにメッセージを送信
-        settingsTabs.forEach(tab => {
-          browser.tabs.sendMessage(tab.id, message)
-            .catch(err => console.warn('タブへのメッセージ送信エラー:', err));
-        });
-      } else {
-        console.log('設定タブが見つかりません。通知をスキップします');
-      }
-    }).catch(err => {
-      console.error('タブ検索エラー:', err);
-    });
-  } catch (err) {
-    console.error('設定ページへの通知エラー:', err);
-  }
-}
+
 
 // 初期化
 initialize();
