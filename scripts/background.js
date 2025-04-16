@@ -160,30 +160,39 @@ async function getSystemDpr(callback) {
     // キャッシュがあればそれを使用
     if (cachedDpr !== null) {
       if (callback) {
-        callback(cachedDpr * 100); // コールバック関数にpercentValueを渡す
+        callback(cachedDpr * 100);
       }
       return cachedDpr;
     }
     
-    console.log('storage.localからDPR設定を取得中...');
+    Logger.logDprOperation('読み込み', () => {
+      Logger.info('storage.localからDPR設定を取得中...');
+    });
+    
     const data = await browser.storage.local.get('systemDpr');
-    console.log('取得したDPR設定データ:', data);
+    
+    Logger.logDprOperation('取得結果', () => {
+      Logger.info('取得したDPR設定データ:', data);
+      
+      const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
+      const dprValue = percentValue / 100;
+      
+      Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+      
+      // キャッシュに保存
+      cachedDpr = dprValue;
+    });
     
     const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
     const dprValue = percentValue / 100;
     
-    // キャッシュに保存
-    cachedDpr = dprValue;
-    
-    console.log(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
-    
     if (callback) {
-      callback(percentValue); // コールバック関数にpercentValueを渡す
+      callback(percentValue);
     }
     
     return dprValue;
   } catch (err) {
-    console.error('DPR設定取得エラー:', err);
+    Logger.error('DPR設定読み込みエラー:', err);
     return 1.0; // エラー時のデフォルト値
   }
 }
@@ -251,15 +260,15 @@ async function convertToPhysical(logicalWidth, logicalHeight) {
 
 // プリセットを適用する関数
 async function applyPreset(preset) {
-     try {
-      const windowId = await getCurrentWindowId();
-      await applyPresetToWindow(windowId, preset);
-      return { success: true };
-    } catch (error) {
-      console.error('プリセット適用エラー:', error);
-      return { error: error.message };
-    }
+  try {
+    const windowId = await getCurrentWindowId();
+    await applyPresetToWindow(windowId, preset);
+    return { success: true };
+  } catch (error) {
+    handleError('プリセット適用', error);
+    throw error; // 必要に応じて再スロー
   }
+}
 
 // 拡大率設定を適用する関数
 async function applyZoom(zoom) {
@@ -347,17 +356,44 @@ async function getScreenInfo() {
 // 現在のウィンドウ情報を取得（確実に変換を行うバージョン）
 async function getCurrentWindowInfo() {
   try {
-    console.group("現在のウィンドウ情報取得");
+    Logger.logWindowOperation("現在の情報取得", async () => {
+      // 1. 現在のウィンドウを取得
+      const win = await browser.windows.getCurrent({ populate: true });
+      Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
+      
+      // 2. ユーザー設定のDPR値を取得
+      const dpr = await getSystemDpr();
+      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+      
+      // 3. 論理ピクセル値（ブラウザから取得した値）
+      const logical = {
+        width: win.width,
+        height: win.height,
+        left: win.left,
+        top: win.top
+      };
+      
+      // 4. 物理ピクセル値に変換
+      const physical = {
+        width: Math.round(logical.width * dpr),
+        height: Math.round(logical.height * dpr),
+        left: Math.round(logical.left * dpr),
+        top: Math.round(logical.top * dpr)
+      };
+      
+      // 5. 結果を出力
+      Logger.info("3. 最終的なウィンドウ情報:", {
+        論理ピクセル値: logical,
+        物理ピクセル値: physical,
+        DPR: dpr,
+        拡大率: `${dpr * 100}%`
+      });
+    });
     
-    // 1. 現在のウィンドウを取得
+    // ウィンドウを取得し直す（グループ外に移動）
     const win = await browser.windows.getCurrent({ populate: true });
-    console.log("1. ブラウザから取得したウィンドウ情報:", win);
-    
-    // 2. ユーザー設定のDPR値を取得
     const dpr = await getSystemDpr();
-    console.log(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
     
-    // 3. 論理ピクセル値（ブラウザから取得した値）
     const logical = {
       width: win.width,
       height: win.height,
@@ -365,7 +401,6 @@ async function getCurrentWindowInfo() {
       top: win.top
     };
     
-    // 4. 物理ピクセル値に変換
     const physical = {
       width: Math.round(logical.width * dpr),
       height: Math.round(logical.height * dpr),
@@ -373,8 +408,7 @@ async function getCurrentWindowInfo() {
       top: Math.round(logical.top * dpr)
     };
     
-    // 5. 結果オブジェクトを作成
-    const result = {
+    return {
       // 論理ピクセル値
       width: logical.width,
       height: logical.height,
@@ -391,33 +425,15 @@ async function getCurrentWindowInfo() {
       dpr: dpr,
       dprPercent: dpr * 100
     };
-    
-    console.log("3. 最終的なウィンドウ情報:", {
-      論理ピクセル値: logical,
-      物理ピクセル値: physical,
-      DPR: dpr,
-      拡大率: `${dpr * 100}%`
-    });
-    
-    console.groupEnd();
-    return result;
   } catch (error) {
-    console.error("ウィンドウ情報取得エラー:", error);
-    console.groupEnd();
+    Logger.error("ウィンドウ情報取得エラー:", error);
     
     // エラー時のフォールバック
-    const dpr = 1.0; // デフォルト値
     return {
-      width: 1600,
-      height: 900,
-      left: 0,
-      top: 0,
-      dpr: dpr,
-      dprPercent: 100,
-      physicalWidth: 1600,
-      physicalHeight: 900,
-      physicalLeft: 0,
-      physicalTop: 0
+      width: 1600, height: 900, left: 0, top: 0,
+      dpr: 1.0, dprPercent: 100,
+      physicalWidth: 1600, physicalHeight: 900,
+      physicalLeft: 0, physicalTop: 0
     };
   }
 }
@@ -444,59 +460,66 @@ async function applyDefaultPresetIfNeeded() {
 // ウィンドウにプリセットを適用（確実に変換を適用するバージョン）
 async function applyPresetToWindow(windowId, preset) {
   try {
-    console.group(`プリセット適用: "${preset.name}"`);
-    
-    // 1. 元のプリセット値を出力
-    console.log("1. 元のプリセット値:", {
-      width: preset.width,
-      height: preset.height,
-      left: preset.left, 
-      top: preset.top,
-    });
-    
-    // 2. ユーザー設定のDPR値を取得
-    const dpr = await getSystemDpr();
-    console.log(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-    
-    // 3. 変換計算
-    let logicalWidth, logicalHeight, logicalLeft, logicalTop;
-    
+    Logger.logPresetOperation(`"${preset.name}" を適用`, async () => {
+      // 1. 元のプリセット値を出力
+      Logger.info("1. 元のプリセット値:", {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left, 
+        top: preset.top,
+      });
+      
+      // 2. ユーザー設定のDPR値を取得
+      const dpr = await getSystemDpr();
+      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+      
+      // 3. 変換計算
+      let logicalWidth, logicalHeight, logicalLeft, logicalTop;
+      
       logicalWidth = Math.round(preset.width / dpr);
       logicalHeight = Math.round(preset.height / dpr);
       logicalLeft = Math.round(preset.left / dpr);
       logicalTop = Math.round(preset.top / dpr);
+        
+      Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
       
-      console.log("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-    
-    // 変換計算の詳細を表形式で出力
-    console.table({
-      幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-      高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-      左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-      上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
+      // 変換計算の詳細を表形式で出力
+      Logger.table({
+        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
+      });
+      
+      // 4. 最終的な適用値を出力
+      const finalValues = {
+        width: logicalWidth,
+        height: logicalHeight,
+        left: logicalLeft,
+        top: logicalTop
+      };
+      
+      Logger.info("4. ウィンドウに適用する最終値:", finalValues);
     });
     
-    // 4. 最終的な適用値を出力
+    // 5. ブラウザAPIに渡す
     const finalValues = {
-      width: logicalWidth,
-      height: logicalHeight,
-      left: logicalLeft,
-      top: logicalTop
+      width: Math.round(preset.width / await getSystemDpr()),
+      height: Math.round(preset.height / await getSystemDpr()),
+      left: Math.round(preset.left / await getSystemDpr()),
+      top: Math.round(preset.top / await getSystemDpr())
     };
     
-    console.log("4. ウィンドウに適用する最終値:", finalValues);
-    
-    // 5. ブラウザAPIに渡す
     const result = await browser.windows.update(windowId, finalValues);
     
-    console.log("5. 適用結果:", result);
-    console.groupEnd();
+    Logger.logPresetOperation('適用結果', () => {
+      Logger.info("5. 適用結果:", result);
+    });
     
     return result;
   } catch (error) {
-    console.error("プリセット適用エラー:", error);
-    console.groupEnd();
-    throw error;
+    handleError('プリセット適用', error);
+    throw error; // 必要に応じて再スロー
   }
 }
 
@@ -526,9 +549,8 @@ async function savePreset(preset) {
     console.groupEnd();
     return presets;
   } catch (error) {
-    console.error("プリセット保存エラー:", error);
-    console.groupEnd();
-    throw error;
+    handleError('プリセット保存', error);
+    throw error; // 必要に応じて再スロー
   }
 }
 
@@ -544,7 +566,7 @@ async function getPresets() {
     const data = await browser.storage.local.get('presets');
     return Array.isArray(data.presets) ? data.presets : [];
   } catch (error) {
-    console.error('プリセット取得エラー:', error);
+    handleError('プリセット取得', error);
     return [];
   }
 }
@@ -561,7 +583,7 @@ browser.runtime.onStartup.addListener(async () => {
       console.log(`注意: 標準設定(100%)と異なる拡大率が設定されています。論理/物理ピクセル変換が有効です。`);
     }
   } catch (err) {
-    console.error('起動時の設定チェックエラー:', err);
+    handleError('起動時の設定チェック', err);
   }
 });
 
@@ -591,7 +613,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
       console.log('初期設定後のストレージ内容:', checkData);
     }
   } catch (err) {
-    console.error('初期設定エラー:', err);
+    handleError('初期設定', err);
   }
 });
 
@@ -656,7 +678,7 @@ browser.runtime.onInstalled.addListener(details => {
   
   // 起動時にデフォルトプリセットを適用
   applyDefaultPresetIfNeeded().catch(err => {
-    logger.error("デフォルトプリセット適用エラー:", err);
+    handleError('デフォルトプリセット適用', err);
   });
 });
 
@@ -673,7 +695,7 @@ async function initialize() {
     });
     console.log('アイコンを設定しました');
   } catch (err) {
-    console.error('アイコン設定エラー:', err);
+    handleError('アイコン設定', err);
   }
   
   // コンテキストメニューを作成
@@ -685,7 +707,7 @@ async function initialize() {
     });
     console.log('コンテキストメニューを作成しました');
   } catch (err) {
-    console.error('コンテキストメニュー作成エラー:', err);
+    handleError('コンテキストメニュー作成', err);
   }
 }
 
@@ -695,6 +717,12 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
     openSettingsPage();
   }
 });
+
+// エラーハンドリング関数
+function handleError(context, error) {
+  Logger.error(`${context}エラー:`, error);
+  // エラー通知やリカバリー処理などもここで一元管理できる
+}
 
 // 拡張機能を初期化
 initialize();

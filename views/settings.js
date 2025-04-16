@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   // メッセージリスナーを設定
   setupMessageListeners();
   
-   
+  
   console.log('設定画面の初期化が完了しました');
 });
 
@@ -306,4 +306,5 @@ async function saveDprSetting() {
     alert('設定の保存に失敗しました: ' + err.message);
   }
 }
+
 

@@ -20,7 +20,7 @@
       "default_popup": "views/popup.html"
    },
    "background": {
-      "scripts": ["scripts/browser-polyfill.min.js", "scripts/background.js"]
+      "scripts": ["scripts/logger.js", "scripts/browser-polyfill.min.js", "scripts/background.js"]
    },
    "permissions": [
       "storage",
