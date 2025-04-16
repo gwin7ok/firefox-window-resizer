@@ -1,3 +1,9 @@
+const DEFAULT_WIDTH = 1280;
+const DEFAULT_HEIGHT = 720;
+const DEFAULT_PRESET_NAME = "default"; // DEFAULT_PRESET_NAME 変数を宣言
+const SYSTEM_DPR_STORAGE_KEY = 'systemDpr';
+const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
+
 // 開発用デバッグ情報
 function showDebugInfo() {
   console.log('====== Window Resizer デバッグ情報 ======');
@@ -86,9 +92,6 @@ const DEFAULT_SETTINGS = {
 
 
 
-// 起動時のデフォルトプリセット適用フラグ
-const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
-
 // デバッグレベル設定
 const DEBUG_LEVEL = {
   NONE: 0,    // 重要なメッセージのみ
@@ -154,10 +157,13 @@ async function initialize() {
 // 設定からDPR値を取得する関数 - キャッシュ機能追加
 let cachedDpr = null;
 
-async function getSystemDpr() {
+async function getSystemDpr(callback) {
   try {
     // キャッシュがあればそれを使用
     if (cachedDpr !== null) {
+      if (callback) {
+        callback(cachedDpr * 100); // コールバック関数にpercentValueを渡す
+      }
       return cachedDpr;
     }
     
@@ -172,6 +178,11 @@ async function getSystemDpr() {
     cachedDpr = dprValue;
     
     console.log(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+    
+    if (callback) {
+      callback(percentValue); // コールバック関数にpercentValueを渡す
+    }
+    
     return dprValue;
   } catch (err) {
     console.error('DPR設定取得エラー:', err);
@@ -220,6 +231,72 @@ async function convertPhysicalToLogical(physicalObj) {
     top: Math.round(physicalObj.top / dpr),
     dpr: dpr
   };
+}
+
+// 物理ピクセル値を論理ピクセル値に変換
+async function convertToLogical(physicalWidth, physicalHeight) {
+  const dprFactor = await getSystemDpr();
+  const logicalWidth = Math.round(physicalWidth / dprFactor);
+  const logicalHeight = Math.round(physicalHeight / dprFactor);
+  return { width: logicalWidth, height: logicalHeight };
+}
+
+// 論理ピクセル値を物理ピクセル値に変換
+async function convertToPhysical(logicalWidth, logicalHeight) {
+  const dprFactor = await getSystemDpr();
+  const physicalWidth = Math.round(logicalWidth * dprFactor);
+  const physicalHeight = Math.round(logicalHeight * dprFactor);
+  return { width: physicalWidth, height: physicalHeight };
+}
+
+
+
+// プリセットを適用する関数
+async function applyPreset(preset) {
+     try {
+      const windowId = await getCurrentWindowId();
+      await applyPresetToWindow(windowId, preset);
+      return { success: true };
+    } catch (error) {
+      console.error('プリセット適用エラー:', error);
+      return { error: error.message };
+    }
+  }
+
+// 拡大率設定を適用する関数
+async function applyZoom(zoom) {
+  console.log('拡大率適用:', zoom);
+  
+  // 既存のタブを更新
+  browser.tabs.query({}).then(tabs => {
+    tabs.forEach(tab => {
+      console.log('タブにズーム設定を適用:', tab.id, zoom);
+      browser.tabs.setZoom(tab.id, zoom);
+    });
+  });
+}
+
+// 設定ページを開く関数
+async function openSettingsPage() {
+  console.log('設定ページを開きます');
+  
+  // 既存の設定タブを検索
+  let settingsTab = null;
+  const tabs = await browser.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.url && tab.url.includes('settings.html')) {
+      settingsTab = tab;
+      break;
+    }
+  }
+  
+  if (settingsTab) {
+    // 既存の設定タブがある場合は、それをアクティブにする
+    browser.tabs.update(settingsTab.id, { active: true });
+  } else {
+    // 既存の設定タブがない場合は、新しいタブで開く
+    browser.tabs.create({ url: 'settings.html' });
+  }
 }
 
 // スクリーン情報取得関数（修正版）
@@ -474,11 +551,6 @@ async function getPresets() {
   }
 }
 
-
-
-// 初期化
-initialize();
-
 // 拡張機能の起動時に設定値を確認
 browser.runtime.onStartup.addListener(async () => {
   try {
@@ -508,7 +580,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     logger.debug('現在のストレージ内容:', data);
     
     // インストール時、または設定がない場合
-    if (details.reason === 'install' || data.systemDpr === undefined) {
+    if (details.reason === 'install' && data === undefined) {
       console.log('初期設定を適用します');
       
       // 初期設定を確実に保存
@@ -534,17 +606,98 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-browser.runtime.onMessage.addListener(async (message, sender) => {
-  console.log('メッセージを受信:', message);
-
-  if (message.action === 'applyPreset') {
-    try {
-      const windowId = await getCurrentWindowId();
-      await applyPresetToWindow(windowId, message.preset);
-      return { success: true };
-    } catch (error) {
-      console.error('プリセット適用エラー:', error);
-      return { error: error.message };
-    }
+// メッセージリスナー
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('メッセージを受信:', request);
+  
+  if (request.action === 'applyPreset') {
+    applyPreset(request.preset);
+  } else if (request.action === 'applyZoom') {
+    applyZoom(request.zoom);
+  } else if (request.action === 'openSettingsPage') {
+    openSettingsPage();
+  } else if (request.action === 'getSystemDpr') {
+    getSystemDpr(sendResponse);
+    return true;  // 非同期レスポンスを維持
   }
 });
+
+// インストール時またはアップデート時の処理
+browser.runtime.onInstalled.addListener(details => {
+  console.log('インストールまたはアップデート:', details.reason);
+  
+  if (details.reason === 'install') {
+    console.log('初めてのインストールです');
+    // 初めてインストールされたときの処理
+    browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME });
+  } else if (details.reason === 'update') {
+    console.log('アップデートしました');
+    // アップデートされたときの処理
+  }
+  
+  // プリセットを初期化
+  browser.storage.local.get(DEFAULT_PRESET_NAME).then(item => {
+    if (!item[DEFAULT_PRESET_NAME]) {
+      console.log('デフォルトプリセットを初期化します');
+      const defaultPreset = {
+        name: DEFAULT_PRESET_NAME,
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT,
+        isPhysical: false
+      };
+      browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+    }
+  });
+  
+  // 設定を初期化
+  browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(item => {
+    if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+      console.log('DPR設定を初期化します');
+      browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+    }
+  });
+  
+  // 起動時にデフォルトプリセットを適用
+  applyDefaultPresetIfNeeded().catch(err => {
+    logger.error("デフォルトプリセット適用エラー:", err);
+  });
+});
+
+// 拡張機能が起動したときの処理
+async function initialize() {
+  console.log('拡張機能を初期化します');
+  
+  // アイコンを設定
+  try {
+    await browser.browserAction.setIcon({
+      path: {
+        "48": "icons/browser-icon-48.png"
+      }
+    });
+    console.log('アイコンを設定しました');
+  } catch (err) {
+    console.error('アイコン設定エラー:', err);
+  }
+  
+  // コンテキストメニューを作成
+  try {
+    await browser.contextMenus.create({
+      id: "open-settings",
+      title: "設定を開く",
+      contexts: ["browser_action"]
+    });
+    console.log('コンテキストメニューを作成しました');
+  } catch (err) {
+    console.error('コンテキストメニュー作成エラー:', err);
+  }
+}
+
+// コンテキストメニューがクリックされたときの処理
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "open-settings") {
+    openSettingsPage();
+  }
+});
+
+// 拡張機能を初期化
+initialize();

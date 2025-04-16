@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', async function() {
   // プリセット一覧を読み込む
   loadPresets();
   
-  // DPR設定を読み込む
-  await loadDprSetting();
+  // 初期DPR設定を読み込む
+  loadInitialDprSetting();
   
   // イベントリスナーを設定
   setupEventListeners();
@@ -19,6 +19,33 @@ document.addEventListener('DOMContentLoaded', async function() {
   
   console.log('設定画面の初期化が完了しました');
 });
+
+// 初期DPR設定を読み込む
+async function loadInitialDprSetting() {
+  try {
+    console.log('システムDPR設定を読み込んでいます...');
+    
+    // background.jsのgetSystemDpr関数を呼び出す
+    const backgroundPage = await browser.runtime.getBackgroundPage();
+    backgroundPage.getSystemDpr(function(dprValue) {
+      console.log('読み込まれたDPR設定:', dprValue, '%');
+      
+      // フォームに設定
+      const dprInput = document.getElementById('system-dpr');
+      if (dprInput) {
+        dprInput.value = dprValue;
+      } else {
+        console.error('DPR入力要素が見つかりません');
+      }
+      
+      console.log('DPR設定の読み込みが完了しました');
+    });
+  } catch (err) {
+    console.error('DPR設定読み込みエラー:', err);
+    // エラー表示
+    handleCommonError('DPR設定読み込みエラー', err);
+  }
+}
 
 // イベントリスナーのセットアップ
 function setupEventListeners() {
@@ -236,31 +263,6 @@ async function deletePreset(id) {
   } catch (err) {
     console.error('プリセット削除エラー:', err);
     alert('プリセットの削除に失敗しました');
-  }
-}
-
-// DPR設定を読み込む
-async function loadDprSetting() {
-  try {
-    console.log('システムDPR設定を読み込んでいます...');
-    
-    const data = await browser.storage.local.get('systemDpr');
-    const dprValue = data.systemDpr || 100; // デフォルト100%
-    
-    console.log('読み込まれたDPR設定:', dprValue, '%');
-    
-    // フォームに設定
-    const dprInput = document.getElementById('system-dpr');
-    if (dprInput) {
-      dprInput.value = dprValue;
-    } else {
-      console.error('DPR入力要素が見つかりません');
-    }
-    
-    console.log('DPR設定の読み込みが完了しました');
-  } catch (err) {
-    console.error('DPR設定読み込みエラー:', err);
-    // エラー表示
   }
 }
 
