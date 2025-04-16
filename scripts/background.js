@@ -260,12 +260,124 @@ async function convertToPhysical(logicalWidth, logicalHeight) {
 
 
 
-// プリセットを適用する関数
+// プリセットを適用する関数（非同期処理でもグループを維持）
 async function applyPreset(preset) {
   try {
-    const windowId = await getCurrentWindowId();
-    await applyPresetToWindow(windowId, preset);
-    return { success: true };
+    // 一つのグループとして全処理をラップ
+    return await Logger.logPresetOperation(`"${preset.name}" を適用`, async () => {
+      // ここからすべての処理を一つのグループ内で完結させる
+      
+      // 1. 元のプリセット値を出力
+      Logger.info("1. 元のプリセット値:", {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left, 
+        top: preset.top,
+      });
+      
+      // 2. DPRの取得（非同期処理）- ここで別のグループを作らない
+      const data = await browser.storage.local.get('systemDpr');
+      const systemDpr = data.systemDpr || 100;
+      const dpr = systemDpr / 100;
+      
+      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${systemDpr}%)`);
+      
+      // 3. 変換計算
+      const logicalWidth = Math.round(preset.width / dpr);
+      const logicalHeight = Math.round(preset.height / dpr);
+      const logicalLeft = Math.round(preset.left / dpr);
+      const logicalTop = Math.round(preset.top / dpr);
+      
+      Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+      
+      // テーブル出力
+      Logger.table({
+        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
+      });
+      
+      // 4. ウィンドウに適用
+      const windowId = await getCurrentWindowId();
+      const finalValues = {
+        width: logicalWidth,
+        height: logicalHeight,
+        left: logicalLeft,
+        top: logicalTop
+      };
+      
+      Logger.info("4. ウィンドウに適用する最終値:", finalValues);
+      
+      // ブラウザAPIに渡す
+      const result = await browser.windows.update(windowId, finalValues);
+      
+      // 5. 適用結果
+      Logger.info("5. 適用結果:", result);
+      
+      return { success: true, result };
+    });
+  } catch (error) {
+    Logger.error('プリセット適用エラー:', error);
+    throw error;
+  }
+}
+
+// ウィンドウにプリセットを適用（内部実装 - ログ出力を含む）
+async function applyPresetToWindowInternal(windowId, preset) {
+  // 1. 元のプリセット値を出力
+  Logger.info("1. 元のプリセット値:", {
+    width: preset.width,
+    height: preset.height,
+    left: preset.left, 
+    top: preset.top,
+  });
+  
+  // 2. ユーザー設定のDPR値を取得
+  const dpr = await getSystemDpr();
+  Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+  
+  // 3. 変換計算
+  let logicalWidth, logicalHeight, logicalLeft, logicalTop;
+  
+  logicalWidth = Math.round(preset.width / dpr);
+  logicalHeight = Math.round(preset.height / dpr);
+  logicalLeft = Math.round(preset.left / dpr);
+  logicalTop = Math.round(preset.top / dpr);
+    
+  Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+  
+  // 変換計算の詳細を表形式で出力
+  Logger.table({
+    幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+    高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+    左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+    上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
+  });
+  
+  // 4. 最終的な適用値を出力
+  const finalValues = {
+    width: logicalWidth,
+    height: logicalHeight,
+    left: logicalLeft,
+    top: logicalTop
+  };
+  
+  Logger.info("4. ウィンドウに適用する最終値:", finalValues);
+  
+  // ブラウザAPIに渡す
+  const result = await browser.windows.update(windowId, finalValues);
+  
+  // 5. 適用結果を出力
+  Logger.info("5. 適用結果:", result);
+  
+  return result;
+}
+
+// ウィンドウにプリセットを適用（公開API - 呼び出すだけ）
+async function applyPresetToWindow(windowId, preset) {
+  try {
+    return await applyPresetToWindowInternal(windowId, preset);
   } catch (error) {
     handleError('プリセット適用', error);
     throw error; // 必要に応じて再スロー
@@ -468,72 +580,6 @@ async function applyDefaultPresetIfNeeded() {
         await applyPresetToWindow(windows[0].id, defaultPreset);
       }
     }
-  }
-}
-
-// ウィンドウにプリセットを適用（確実に変換を適用するバージョン）
-async function applyPresetToWindow(windowId, preset) {
-  try {
-    Logger.logPresetOperation(`"${preset.name}" を適用`, async () => {
-      // 1. 元のプリセット値を出力
-      Logger.info("1. 元のプリセット値:", {
-        width: preset.width,
-        height: preset.height,
-        left: preset.left, 
-        top: preset.top,
-      });
-      
-      // 2. ユーザー設定のDPR値を取得
-      const dpr = await getSystemDpr();
-      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-      
-      // 3. 変換計算
-      let logicalWidth, logicalHeight, logicalLeft, logicalTop;
-      
-      logicalWidth = Math.round(preset.width / dpr);
-      logicalHeight = Math.round(preset.height / dpr);
-      logicalLeft = Math.round(preset.left / dpr);
-      logicalTop = Math.round(preset.top / dpr);
-        
-      Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-      
-      // 変換計算の詳細を表形式で出力
-      Logger.table({
-        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
-      });
-      
-      // 4. 最終的な適用値を出力
-      const finalValues = {
-        width: logicalWidth,
-        height: logicalHeight,
-        left: logicalLeft,
-        top: logicalTop
-      };
-      
-      Logger.info("4. ウィンドウに適用する最終値:", finalValues);
-    });
-    
-    // 5. ブラウザAPIに渡す
-    const finalValues = {
-      width: Math.round(preset.width / await getSystemDpr()),
-      height: Math.round(preset.height / await getSystemDpr()),
-      left: Math.round(preset.left / await getSystemDpr()),
-      top: Math.round(preset.top / await getSystemDpr())
-    };
-    
-    const result = await browser.windows.update(windowId, finalValues);
-    
-    Logger.logPresetOperation('適用結果', () => {
-      Logger.info("5. 適用結果:", result);
-    });
-    
-    return result;
-  } catch (error) {
-    handleError('プリセット適用', error);
-    throw error; // 必要に応じて再スロー
   }
 }
 
