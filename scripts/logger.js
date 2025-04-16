@@ -21,6 +21,16 @@ class Logger {
   static debugMode = true; // デフォルトは有効
   
   /**
+   * グループのネストレベルを追跡
+   */
+  static nestedLevel = 0;
+  
+  /**
+   * 実行中のグループスタック（グループ名を追跡）
+   */
+  static activeGroups = [];
+
+  /**
    * デバッグモードの初期化（ストレージから設定を読み込む）
    */
   static async initDebugMode() {
@@ -67,36 +77,134 @@ class Logger {
   }
 
   /**
-   * グループ化されたログ出力を開始
+   * グループ化されたログ出力を開始（ネストレベル追跡付き）
    * @param {string} groupName - グループ名
+   * @returns {string} グループID
    */
   static startGroup(groupName) {
     if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      console.group(groupName);
+      // ネストレベル増加
+      Logger.nestedLevel++;
+      
+      // グループスタックに追加
+      const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      Logger.activeGroups.push({
+        id: groupId,
+        name: groupName,
+        level: Logger.nestedLevel
+      });
+      
+      // ネストレベルに応じたインデントと装飾を追加
+      const indent = '  '.repeat(Math.max(0, Logger.nestedLevel - 1));
+      const prefix = Logger.nestedLevel > 1 ? '┗ ' : '';
+      
+      console.group(`${indent}${prefix}${groupName}`);
+      return groupId;
     }
+    return null;
   }
   
   /**
-   * 折りたたまれたグループを開始
+   * 折りたたまれたグループを開始（ネストレベル追跡付き）
    * @param {string} groupName - グループ名
+   * @returns {string} グループID
    */
   static startCollapsedGroup(groupName) {
     if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      console.groupCollapsed(groupName);
+      // ネストレベル増加
+      Logger.nestedLevel++;
+      
+      // グループスタックに追加
+      const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      Logger.activeGroups.push({
+        id: groupId,
+        name: groupName,
+        level: Logger.nestedLevel
+      });
+      
+      // ネストレベルに応じたインデントと装飾を追加
+      const indent = '  '.repeat(Math.max(0, Logger.nestedLevel - 1));
+      const prefix = Logger.nestedLevel > 1 ? '┗ ' : '';
+      
+      console.groupCollapsed(`${indent}${prefix}${groupName}`);
+      return groupId;
     }
+    return null;
   }
 
   /**
-   * グループを終了
+   * グループを終了（ネストレベル追跡付き）
+   * @param {string} groupId - グループID（省略可）
    */
-  static endGroup() {
+  static endGroup(groupId = null) {
     if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      console.groupEnd();
+      if (groupId && Logger.activeGroups.length > 0) {
+        // 特定のグループIDが指定された場合
+        const index = Logger.activeGroups.findIndex(g => g.id === groupId);
+        if (index >= 0) {
+          // このグループより後に開始されたすべてのグループも閉じる
+          const closeCount = Logger.activeGroups.length - index;
+          
+          // 閉じる必要があるグループの数だけgroupEndを呼び出す
+          for (let i = 0; i < closeCount; i++) {
+            console.groupEnd();
+          }
+          
+          // スタックから削除
+          Logger.activeGroups.splice(index, closeCount);
+          
+          // ネストレベルを適切に調整
+          Logger.nestedLevel = index > 0 ? Logger.activeGroups[index - 1].level : 0;
+        }
+      } else if (Logger.activeGroups.length > 0) {
+        // グループIDが指定されていない場合は最新のグループを閉じる
+        Logger.activeGroups.pop();
+        console.groupEnd();
+        
+        // ネストレベル減少
+        if (Logger.nestedLevel > 0) {
+          Logger.nestedLevel--;
+        }
+      } else {
+        // 安全策：アクティブなグループがなくても一応groupEndを呼び出す
+        console.groupEnd();
+        Logger.nestedLevel = 0;
+      }
     }
   }
 
   /**
-   * デバッグログを出力（最も詳細なレベル）
+   * 共通操作用のグループ化関数 - 非同期対応版
+   * @param {string} prefix - グループ接頭辞
+   * @param {string} title - グループタイトル 
+   * @param {function} logFunction - ログ出力を行うコールバック関数（非同期可）
+   * @returns {Promise<any>} コールバック関数の戻り値
+   */
+  static async logOperationGroup(prefix, title, logFunction) {
+    if (!Logger.debugMode || Logger.debugLevel < Logger.DEBUG_LEVEL.INFO) {
+      // デバッグモード無効時は単純にコールバックを実行して戻り値を返す
+      return await logFunction();
+    }
+    
+    const fullTitle = `${prefix}: ${title}`;
+    const groupId = Logger.startGroup(fullTitle);
+    
+    try {
+      // コールバック関数を実行（非同期関数にも対応）
+      const result = await logFunction();
+      return result;
+    } catch (error) {
+      // エラーをログに記録
+      Logger.error(`${fullTitle} でエラーが発生しました:`, error);
+      throw error; // エラーを再スロー
+    } finally {
+      // 必ずグループを終了
+      Logger.endGroup(groupId);
+    }
+  }
+
+  /**
+   * デバッグログを出力（ネストに対応）
    * @param {string} message - メッセージ
    * @param {any} data - 追加データ（オプショナル）
    */
@@ -111,12 +219,13 @@ class Logger {
   }
 
   /**
-   * 情報ログを出力
+   * 情報ログを出力（ネストに対応）
    * @param {string} message - メッセージ
    * @param {any} data - 追加データ（オプショナル）
    */
   static info(message, data) {
     if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
+      // 現在のグループコンテキストを尊重する（追加のインデントは不要）
       if (data !== undefined) {
         console.log(message, data);
       } else {
@@ -126,7 +235,7 @@ class Logger {
   }
 
   /**
-   * 警告ログを出力
+   * 警告ログを出力（ネストに対応）
    * @param {string} message - 警告メッセージ
    * @param {any} data - 追加データ（オプショナル）
    */
@@ -141,7 +250,7 @@ class Logger {
   }
 
   /**
-   * エラーログを出力
+   * エラーログを出力（ネストに対応）
    * @param {string} message - エラーメッセージ
    * @param {Error} error - エラーオブジェクト（オプショナル）
    */
@@ -166,67 +275,43 @@ class Logger {
   }
 
   /**
-   * DPR関連のログ出力をグループ化
+   * DPR関連のログ出力をグループ化 - 非同期対応版
    * @param {string} title - グループタイトル
-   * @param {function} logFunction - ログ出力を行うコールバック関数
+   * @param {function} logFunction - ログ出力を行うコールバック関数（非同期可）
+   * @returns {Promise<any>} コールバック関数の戻り値
    */
-  static logDprOperation(title, logFunction) {
-    if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      Logger.startGroup(`DPR設定: ${title}`);
-      try {
-        logFunction();
-      } finally {
-        Logger.endGroup();
-      }
-    }
+  static async logDprOperation(title, logFunction) {
+    return await Logger.logOperationGroup('DPR設定', title, logFunction);
   }
 
   /**
-   * ウィンドウサイズ関連のログ出力をグループ化
+   * ウィンドウサイズ関連のログ出力をグループ化 - 非同期対応版
    * @param {string} title - グループタイトル
-   * @param {function} logFunction - ログ出力を行うコールバック関数
+   * @param {function} logFunction - ログ出力を行うコールバック関数（非同期可）
+   * @returns {Promise<any>} コールバック関数の戻り値
    */
-  static logWindowOperation(title, logFunction) {
-    if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      Logger.startGroup(`ウィンドウサイズ: ${title}`);
-      try {
-        logFunction();
-      } finally {
-        Logger.endGroup();
-      }
-    }
+  static async logWindowOperation(title, logFunction) {
+    return await Logger.logOperationGroup('ウィンドウサイズ', title, logFunction);
   }
 
   /**
-   * プリセット関連のログ出力をグループ化
+   * プリセット関連のログ出力をグループ化 - 非同期対応版
    * @param {string} title - グループタイトル
-   * @param {function} logFunction - ログ出力を行うコールバック関数
+   * @param {function} logFunction - ログ出力を行うコールバック関数（非同期可）
+   * @returns {Promise<any>} コールバック関数の戻り値
    */
-  static logPresetOperation(title, logFunction) {
-    if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      Logger.startGroup(`プリセット: ${title}`);
-      try {
-        logFunction();
-      } finally {
-        Logger.endGroup();
-      }
-    }
+  static async logPresetOperation(title, logFunction) {
+    return await Logger.logOperationGroup('プリセット', title, logFunction);
   }
 
   /**
-   * システム関連のログ出力をグループ化
+   * システム関連のログ出力をグループ化 - 非同期対応版
    * @param {string} title - グループタイトル
-   * @param {function} logFunction - ログ出力を行うコールバック関数
+   * @param {function} logFunction - ログ出力を行うコールバック関数（非同期可）
+   * @returns {Promise<any>} コールバック関数の戻り値
    */
-  static logSystemOperation(title, logFunction) {
-    if (Logger.debugMode && Logger.debugLevel >= Logger.DEBUG_LEVEL.INFO) {
-      Logger.startGroup(`システム: ${title}`);
-      try {
-        logFunction();
-      } finally {
-        Logger.endGroup();
-      }
-    }
+  static async logSystemOperation(title, logFunction) {
+    return await Logger.logOperationGroup('システム', title, logFunction);
   }
   
   /**
