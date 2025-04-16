@@ -33,8 +33,6 @@ function showDebugInfo() {
 // 起動時に実行
 showDebugInfo();
 
-// 1分ごとに再表示（開発中のみ）
-// setInterval(showDebugInfo, 60000);
 
 // デバッグログを有効化
 browser.storage.local.get('debug').then(data => {
@@ -580,7 +578,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     logger.debug('現在のストレージ内容:', data);
     
     // インストール時、または設定がない場合
-    if (details.reason === 'install' && data === undefined) {
+    if (details.reason === 'install' && data.systemDpr === undefined) {
       console.log('初期設定を適用します');
       
       // 初期設定を確実に保存
