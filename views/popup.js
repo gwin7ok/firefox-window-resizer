@@ -2,7 +2,9 @@
 
 // DOMが完全に読み込まれてから実行
 document.addEventListener('DOMContentLoaded', async function() {
-  console.log('ポップアップを初期化しています...');
+  Logger.logSystemOperation('ポップアップ初期化', () => {
+    Logger.info('ポップアップを初期化しています...');
+  });
   
   // プリセット一覧を読み込む
   await loadPresets();
@@ -13,28 +15,30 @@ document.addEventListener('DOMContentLoaded', async function() {
     settingsButton.addEventListener('click', openSettings);
   }
   
-  console.log('ポップアップの初期化が完了しました');
+  Logger.info('ポップアップの初期化が完了しました');
 });
 
 // プリセットを読み込む
 async function loadPresets() {
   try {
-    console.log('プリセットを読み込んでいます...');
+    Logger.logPresetOperation('読み込み開始', () => {
+      Logger.info('プリセットを読み込んでいます...');
+    });
     
     // コンテナを取得
     const container = document.getElementById('presets-container');
     if (!container) {
-      console.error('presets-container 要素が見つかりません');
+      Logger.error('presets-container 要素が見つかりません');
       return;
     }
     
     // ストレージからプリセットを取得
     const data = await browser.storage.local.get('presets');
-    console.log('取得したデータ:', data);
+    Logger.info('取得したデータ:', data);
     
     // presets が配列でない場合は空の配列を使用
     const presets = Array.isArray(data.presets) ? data.presets : [];
-    console.log('プリセット配列:', presets, '長さ:', presets.length);
+    Logger.info('プリセット配列:', presets, '長さ:', presets.length);
     
     // コンテンツをクリア
     container.innerHTML = '';
@@ -89,9 +93,11 @@ async function loadPresets() {
       presetsTable.appendChild(presetItem);
     });
     
-    console.log('プリセットの読み込みが完了しました');
+    Logger.logPresetOperation('読み込み完了', () => {
+      Logger.info('プリセットの読み込みが完了しました');
+    });
   } catch (err) {
-    console.error('プリセット読み込みエラー:', err);
+    Logger.error('プリセット読み込みエラー:', err);
     
     // エラー表示
     const container = document.getElementById('presets-container');
@@ -103,7 +109,7 @@ async function loadPresets() {
       errorMsg.textContent = 'プリセットの読み込みに失敗しました。';
       container.appendChild(errorMsg);
     } else {
-      console.error('エラーメッセージを表示できません: presets-container 要素が見つかりません');
+      Logger.error('エラーメッセージを表示できません: presets-container 要素が見つかりません');
     }
   }
 }
@@ -112,7 +118,7 @@ async function loadPresets() {
 function createPresetItem(preset) {
   // プリセットの検証
   if (!preset || !preset.name) {
-    console.warn('無効なプリセット:', preset);
+    Logger.warn('無効なプリセット:', preset);
     return document.createElement('div');
   }
   
@@ -150,8 +156,10 @@ function createPresetItem(preset) {
 // プリセットを適用
 async function applyPreset(preset) {
   try {
-    console.log('プリセット適用リクエスト');
-    console.log('適用するプリセット:', preset);
+    Logger.logPresetOperation('適用', () => {
+      Logger.info('プリセット適用リクエスト');
+      Logger.info('適用するプリセット:', preset);
+    });
     
     // バックグラウンドスクリプトにメッセージ送信
     const response = await browser.runtime.sendMessage({
@@ -159,19 +167,19 @@ async function applyPreset(preset) {
       preset: preset
     });
     
-    console.log('適用結果:', response);
+    Logger.info('適用結果:', response);
     
     // エラーチェック
     if (response && response.error) {
       throw new Error(response.error);
     }
     
-    console.log('プリセットを適用しました');
+    Logger.info('プリセットを適用しました');
     
     // ポップアップを閉じる
     window.close();
   } catch (err) {
-    console.error('プリセット適用エラー:', err);
+    Logger.error('プリセット適用エラー:', err);
     alert('プリセットの適用に失敗しました: ' + err.message);
   }
 }
@@ -179,23 +187,27 @@ async function applyPreset(preset) {
 // 設定ページを開く
 function openSettings() {
   try {
+    Logger.logSystemOperation('設定ページへ移動', () => {
+      Logger.info('設定ページを開きます');
+    });
+
     browser.runtime.openOptionsPage().then(() => {
       window.close(); // ポップアップを閉じる
     }).catch(err => {
-      console.error('設定ページを開けませんでした:', err);
+      Logger.error('設定ページを開けませんでした:', err);
       // 代替手段
       browser.tabs.create({ url: browser.runtime.getURL('views/settings.html') })
         .then(() => window.close());
     });
   } catch (err) {
-    console.error('設定ページを開く処理でエラー:', err);
+    Logger.error('設定ページを開く処理でエラー:', err);
     alert('設定ページを開けませんでした: ' + err.message);
   }
 }
 
 // エラーハンドリングのグローバル設定
 window.addEventListener('error', function(event) {
-  console.error('グローバルエラー:', event.error);
+  Logger.error('グローバルエラー:', event.error);
   const errorDiv = document.createElement('div');
   errorDiv.className = 'error-message';
   errorDiv.style.color = 'red';
@@ -208,7 +220,7 @@ window.addEventListener('error', function(event) {
 });
 
 window.addEventListener('unhandledrejection', function(event) {
-  console.error('未処理のPromise拒否:', event.reason);
+  Logger.error('未処理のPromise拒否:', event.reason);
   const errorDiv = document.createElement('div');
   errorDiv.className = 'error-message';
   errorDiv.style.color = 'red';

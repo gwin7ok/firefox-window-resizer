@@ -291,7 +291,7 @@ async function openSettingsPage() {
   let settingsTab = null;
   const tabs = await browser.tabs.query({});
   for (const tab of tabs) {
-    if (tab.url && tab.url.includes('settings.html')) {
+    if (tab.url && tab.url.includes('views/settings.html')) {
       settingsTab = tab;
       break;
     }
@@ -302,7 +302,7 @@ async function openSettingsPage() {
     browser.tabs.update(settingsTab.id, { active: true });
   } else {
     // 既存の設定タブがない場合は、新しいタブで開く
-    browser.tabs.create({ url: 'settings.html' });
+    browser.tabs.create({ url: 'views/settings.html' });
   }
 }
 
