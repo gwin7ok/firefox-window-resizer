@@ -1,195 +1,159 @@
 // ポップアップのJavaScript処理
 
-// DOMが完全に読み込まれてから実行
-document.addEventListener('DOMContentLoaded', async function() {
-  console.log('ポップアップを初期化しています...');
-  
-  // プリセット一覧を読み込む
-  await loadPresets();
-  
-  // 設定ボタンがあれば設定画面を開くイベントリスナーを設定
-  const settingsButton = document.getElementById('settings-button');
-  if (settingsButton) {
-    settingsButton.addEventListener('click', openSettings);
-  }
-  
-  console.log('ポップアップの初期化が完了しました');
-});
-
-// プリセットを読み込む
-async function loadPresets() {
+// ポップアップの初期化
+document.addEventListener('DOMContentLoaded', function() {
   try {
-    console.log('プリセットを読み込んでいます...');
-    
-    // コンテナを取得
-    const container = document.getElementById('presets-container');
-    if (!container) {
-      console.error('presets-container 要素が見つかりません');
-      return;
-    }
-    
-    // ストレージからプリセットを取得
-    const data = await browser.storage.local.get('presets');
-    console.log('取得したデータ:', data);
-    
-    // presets が配列でない場合は空の配列を使用
-    const presets = Array.isArray(data.presets) ? data.presets : [];
-    console.log('プリセット配列:', presets, '長さ:', presets.length);
-    
-    // コンテンツをクリア
-    container.innerHTML = '';
-    
-    if (presets.length === 0) {
-      // プリセットがない場合のメッセージ
-      const noPresetsMsg = document.createElement('div');
-      noPresetsMsg.className = 'no-presets-message';
-      noPresetsMsg.textContent = 'プリセットがありません。設定ページで作成してください。';
-      container.appendChild(noPresetsMsg);
-      
-      // 設定ページへのリンク
-      const settingsLink = document.createElement('button');
-      settingsLink.className = 'settings-link';
-      settingsLink.textContent = '設定ページを開く';
-      settingsLink.addEventListener('click', openSettings);
-      container.appendChild(settingsLink);
-      
-      return;
-    }
-    
-    // テーブル形式のヘッダーを追加
-    const headerRow = document.createElement('div');
-    headerRow.className = 'presets-header';
-    
-    const nameHeader = document.createElement('div');
-    nameHeader.className = 'preset-header-column';
-    nameHeader.textContent = 'プリセット名';
-    
-    const sizeHeader = document.createElement('div');
-    sizeHeader.className = 'preset-header-column';
-    sizeHeader.textContent = 'サイズ';
-    
-    const positionHeader = document.createElement('div');
-    positionHeader.className = 'preset-header-column';
-    positionHeader.textContent = '位置';
-    
-    headerRow.appendChild(nameHeader);
-    headerRow.appendChild(sizeHeader);
-    headerRow.appendChild(positionHeader);
-    
-    container.appendChild(headerRow);
-    
-    // プリセットのリストを作成
-    const presetsTable = document.createElement('div');
-    presetsTable.className = 'presets-table';
-    container.appendChild(presetsTable);
-    
-    // プリセットを表示（列ごとに左揃え）
-    presets.forEach(preset => {
-      const presetItem = createPresetItem(preset);
-      presetsTable.appendChild(presetItem);
+    Logger.logSystemOperation('ポップアップ初期化', () => {
+      Logger.info('ポップアップ画面の初期化を開始します');
     });
     
-    console.log('プリセットの読み込みが完了しました');
-  } catch (err) {
-    console.error('プリセット読み込みエラー:', err);
+    // プリセットリストを読み込み
+    loadPresetList();
     
-    // エラー表示
-    const container = document.getElementById('presets-container');
-    if (container) {
-      container.innerHTML = '';
-      
-      const errorMsg = document.createElement('div');
-      errorMsg.className = 'error-message';
-      errorMsg.textContent = 'プリセットの読み込みに失敗しました。';
-      container.appendChild(errorMsg);
-    } else {
-      console.error('エラーメッセージを表示できません: presets-container 要素が見つかりません');
+    // 設定ページへのリンクを設定
+    setupSettingsLink();
+    
+    Logger.logSystemOperation('初期化完了', () => {
+      Logger.info('ポップアップ画面の初期化が完了しました');
+    });
+  } catch (error) {
+    Logger.error('ポップアップ初期化エラー:', error);
+  }
+});
+
+// プリセットリストの読み込み
+async function loadPresetList() {
+  try {
+    Logger.logPresetOperation('リスト読み込み', () => {
+      Logger.info('保存済みプリセットを読み込んでいます...');
+    });
+    
+    const presetList = document.getElementById('preset-list');
+    if (!presetList) {
+      Logger.error('プリセットリスト要素が見つかりません');
+      return;
     }
+    
+    // プリセットを取得
+    const data = await browser.storage.local.get(['presets', 'defaultPresetName']);
+    const presets = data.presets || [];
+    const defaultPresetName = data.defaultPresetName || '';
+    
+    Logger.logPresetOperation('データ取得', () => {
+      Logger.info('読み込まれたプリセット:', presets);
+      Logger.info('デフォルトプリセット名:', defaultPresetName);
+    });
+    
+    // プリセットリストをクリア
+    presetList.innerHTML = '';
+    
+    // プリセットリストを表示
+    if (presets.length === 0) {
+      Logger.info('保存されたプリセットがありません');
+      
+      const emptyMessage = document.createElement('div');
+      emptyMessage.className = 'empty-message';
+      emptyMessage.textContent = 'プリセットがありません。設定画面で追加してください。';
+      presetList.appendChild(emptyMessage);
+    } else {
+      // 各プリセットをリストに追加
+      presets.forEach(preset => {
+        const presetItem = createPresetItem(preset, preset.name === defaultPresetName);
+        presetList.appendChild(presetItem);
+      });
+      
+      Logger.info(`${presets.length} 個のプリセットを表示しました`);
+    }
+  } catch (error) {
+    Logger.error('プリセットリスト読み込みエラー:', error);
   }
 }
 
-// プリセット項目を作成（列ごとに左揃え）
-function createPresetItem(preset) {
-  // プリセットの検証
-  if (!preset || !preset.name) {
-    console.warn('無効なプリセット:', preset);
-    return document.createElement('div');
+// プリセット項目の作成
+function createPresetItem(preset, isDefault) {
+  try {
+    const presetItem = document.createElement('div');
+    presetItem.className = 'preset-item';
+    if (isDefault) {
+      presetItem.classList.add('default');
+    }
+    
+    // プリセット名
+    const presetName = document.createElement('span');
+    presetName.className = 'preset-name';
+    presetName.textContent = preset.name;
+    presetItem.appendChild(presetName);
+    
+    // プリセット情報
+    const presetInfo = document.createElement('span');
+    presetInfo.className = 'preset-info';
+    presetInfo.textContent = `${preset.width}×${preset.height}`;
+    presetItem.appendChild(presetInfo);
+    
+    // クリックイベントを追加
+    presetItem.addEventListener('click', function() {
+      applyPreset(preset);
+    });
+    
+    return presetItem;
+  } catch (error) {
+    Logger.error('プリセット項目作成エラー:', error);
+    
+    // エラー時はダミーの要素を返す
+    const errorItem = document.createElement('div');
+    errorItem.className = 'preset-item error';
+    errorItem.textContent = 'エラー：項目を作成できません';
+    return errorItem;
   }
-  
-  // 行全体を作成（クリック可能）
-  const item = document.createElement('div');
-  item.className = 'preset-item';
-  item.title = `クリックして "${preset.name}" を適用`;
-  
-  // プリセット名（第1列）
-  const nameElement = document.createElement('div');
-  nameElement.className = 'preset-column preset-name';
-  nameElement.textContent = preset.name;
-  
-  // サイズ表示（第2列）
-  const sizeElement = document.createElement('div');
-  sizeElement.className = 'preset-column preset-size';
-  sizeElement.textContent = `${preset.width}×${preset.height}`;
-  
-  // 位置表示（第3列）
-  const positionElement = document.createElement('div');
-  positionElement.className = 'preset-column preset-position';
-  positionElement.textContent = `(${preset.left}, ${preset.top})`;
-  
-  // 要素を行に追加
-  item.appendChild(nameElement);
-  item.appendChild(sizeElement);
-  item.appendChild(positionElement);
-  
-  // 行全体のクリックイベント
-  item.addEventListener('click', () => applyPreset(preset));
-  
-  return item;
 }
 
 // プリセットを適用
-async function applyPreset(preset) {
+function applyPreset(preset) {
   try {
-    console.log('プリセット適用リクエスト');
-    console.log('適用するプリセット:', preset);
-    
-    // バックグラウンドスクリプトにメッセージ送信
-    const response = await browser.runtime.sendMessage({
-      action: 'applyPreset',
-      preset: preset
+    Logger.logPresetOperation('適用開始', () => {
+      Logger.info(`プリセット "${preset.name}" を適用します:`, preset);
     });
     
-    console.log('適用結果:', response);
-    
-    // エラーチェック
-    if (response && response.error) {
-      throw new Error(response.error);
-    }
-    
-    console.log('プリセットを適用しました');
-    
-    // ポップアップを閉じる
-    window.close();
-  } catch (err) {
-    console.error('プリセット適用エラー:', err);
-    alert('プリセットの適用に失敗しました: ' + err.message);
+    // バックグラウンドスクリプトにメッセージを送信
+    browser.runtime.sendMessage({
+      action: 'applyPreset',
+      preset: preset
+    }).then(response => {
+      Logger.logPresetOperation('適用結果', () => {
+        Logger.info('プリセット適用が完了しました:', response);
+      });
+    }).catch(error => {
+      Logger.error('プリセット適用メッセージ送信エラー:', error);
+    });
+  } catch (error) {
+    Logger.error('プリセット適用エラー:', error);
   }
 }
 
-// 設定ページを開く
-function openSettings() {
+// 設定ページへのリンクを設定
+function setupSettingsLink() {
   try {
-    browser.runtime.openOptionsPage().then(() => {
-      window.close(); // ポップアップを閉じる
-    }).catch(err => {
-      console.error('設定ページを開けませんでした:', err);
-      // 代替手段
-      browser.tabs.create({ url: browser.runtime.getURL('views/settings.html') })
-        .then(() => window.close());
+    const settingsLink = document.getElementById('settings-link');
+    if (!settingsLink) {
+      Logger.error('設定リンク要素が見つかりません');
+      return;
+    }
+    
+    settingsLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      
+      Logger.logSystemOperation('設定ページへ移動', () => {
+        Logger.info('設定ページを開きます');
+      });
+      
+      browser.runtime.sendMessage({
+        action: 'openSettingsPage'
+      }).catch(error => {
+        Logger.error('設定ページを開く際にエラーが発生:', error);
+      });
     });
-  } catch (err) {
-    console.error('設定ページを開く処理でエラー:', err);
-    alert('設定ページを開けませんでした: ' + err.message);
+  } catch (error) {
+    Logger.error('設定リンク設定エラー:', error);
   }
 }
 
