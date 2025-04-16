@@ -1,11 +1,8 @@
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 720;
-const DEFAULT_PRESET_NAME = 'デフォルト'; // DEFAULT_PRESET_NAME 変数を宣言
+const DEFAULT_PRESET_NAME = "default"; // DEFAULT_PRESET_NAME 変数を宣言
 const SYSTEM_DPR_STORAGE_KEY = 'systemDpr';
 const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
-
-// キャッシュと初期値
-let cachedDpr = null;
 
 // 開発用デバッグ情報
 function showDebugInfo() {
@@ -35,6 +32,7 @@ function showDebugInfo() {
 
 // 起動時に実行
 showDebugInfo();
+
 
 // デバッグログを有効化
 browser.storage.local.get('debug').then(data => {
@@ -89,6 +87,8 @@ const DEFAULT_PRESETS = [
 const DEFAULT_SETTINGS = {
   defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
 };
+
+
 
 // デバッグレベル設定
 const DEBUG_LEVEL = {
@@ -152,12 +152,13 @@ async function initialize() {
 
 // 設定関連の処理を強化
 
-// DPR設定を取得する関数
+// 設定からDPR値を取得する関数 - キャッシュ機能追加
+let cachedDpr = null;
+
 async function getSystemDpr(callback) {
   try {
     // キャッシュがあればそれを使用
     if (cachedDpr !== null) {
-      Logger.info('DPR設定をキャッシュから取得:', cachedDpr * 100);
       if (callback) {
         callback(cachedDpr * 100);
       }
@@ -170,16 +171,20 @@ async function getSystemDpr(callback) {
     
     const data = await browser.storage.local.get('systemDpr');
     
-    const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
-    const dprValue = percentValue / 100;
-    
     Logger.logDprOperation('取得結果', () => {
       Logger.info('取得したDPR設定データ:', data);
-      Logger.info(`システムDPR設定: ${percentValue}% (係数: ${dprValue})`);
+      
+      const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
+      const dprValue = percentValue / 100;
+      
+      Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+      
+      // キャッシュに保存
+      cachedDpr = dprValue;
     });
     
-    // キャッシュに保存
-    cachedDpr = dprValue;
+    const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
+    const dprValue = percentValue / 100;
     
     if (callback) {
       callback(percentValue);
@@ -188,9 +193,6 @@ async function getSystemDpr(callback) {
     return dprValue;
   } catch (err) {
     Logger.error('DPR設定読み込みエラー:', err);
-    if (callback) {
-      callback(100); // エラー時のデフォルト値
-    }
     return 1.0; // エラー時のデフォルト値
   }
 }
@@ -254,24 +256,17 @@ async function convertToPhysical(logicalWidth, logicalHeight) {
   return { width: physicalWidth, height: physicalHeight };
 }
 
+
+
 // プリセットを適用する関数
 async function applyPreset(preset) {
   try {
-    Logger.logPresetOperation('開始', () => {
-      Logger.info('プリセットを適用します:', preset);
-    });
-    
-    // 現在のウィンドウを取得
-    const win = await browser.windows.getCurrent();
-    
-    // プリセットを適用
-    await applyPresetToWindow(win.id, preset);
-    
-    Logger.logPresetOperation('完了', () => {
-      Logger.info('プリセット適用が完了しました');
-    });
+    const windowId = await getCurrentWindowId();
+    await applyPresetToWindow(windowId, preset);
+    return { success: true };
   } catch (error) {
-    Logger.error('プリセット適用エラー:', error);
+    handleError('プリセット適用', error);
+    throw error; // 必要に応じて再スロー
   }
 }
 
@@ -289,14 +284,26 @@ async function applyZoom(zoom) {
 }
 
 // 設定ページを開く関数
-function openSettingsPage() {
-  Logger.logSystemOperation('設定ページを開く', () => {
-    Logger.info('設定ページを新しいタブで開きます');
-  });
+async function openSettingsPage() {
+  console.log('設定ページを開きます');
   
-  browser.runtime.openOptionsPage().catch(error => {
-    Logger.error('設定ページを開く際にエラーが発生:', error);
-  });
+  // 既存の設定タブを検索
+  let settingsTab = null;
+  const tabs = await browser.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.url && tab.url.includes('settings.html')) {
+      settingsTab = tab;
+      break;
+    }
+  }
+  
+  if (settingsTab) {
+    // 既存の設定タブがある場合は、それをアクティブにする
+    browser.tabs.update(settingsTab.id, { active: true });
+  } else {
+    // 既存の設定タブがない場合は、新しいタブで開く
+    browser.tabs.create({ url: 'settings.html' });
+  }
 }
 
 // スクリーン情報取得関数（修正版）
@@ -349,16 +356,14 @@ async function getScreenInfo() {
 // 現在のウィンドウ情報を取得（確実に変換を行うバージョン）
 async function getCurrentWindowInfo() {
   try {
-    let windowInfo;
-    
-    Logger.logWindowOperation('情報取得', async () => {
+    Logger.logWindowOperation("現在の情報取得", async () => {
       // 1. 現在のウィンドウを取得
       const win = await browser.windows.getCurrent({ populate: true });
-      Logger.info("ブラウザから取得したウィンドウ情報:", win);
+      Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
       
       // 2. ユーザー設定のDPR値を取得
       const dpr = await getSystemDpr();
-      Logger.info(`DPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
       
       // 3. 論理ピクセル値（ブラウザから取得した値）
       const logical = {
@@ -377,28 +382,49 @@ async function getCurrentWindowInfo() {
       };
       
       // 5. 結果を出力
-      windowInfo = {
-        // 論理ピクセル値
-        width: logical.width,
-        height: logical.height,
-        left: logical.left,
-        top: logical.top,
-        
-        // 物理ピクセル値
-        physicalWidth: physical.width,
-        physicalHeight: physical.height,
-        physicalLeft: physical.left,
-        physicalTop: physical.top,
-        
-        // DPR情報
-        dpr: dpr,
-        dprPercent: dpr * 100
-      };
-      
-      Logger.info("最終的なウィンドウ情報:", windowInfo);
+      Logger.info("3. 最終的なウィンドウ情報:", {
+        論理ピクセル値: logical,
+        物理ピクセル値: physical,
+        DPR: dpr,
+        拡大率: `${dpr * 100}%`
+      });
     });
     
-    return windowInfo;
+    // ウィンドウを取得し直す（グループ外に移動）
+    const win = await browser.windows.getCurrent({ populate: true });
+    const dpr = await getSystemDpr();
+    
+    const logical = {
+      width: win.width,
+      height: win.height,
+      left: win.left,
+      top: win.top
+    };
+    
+    const physical = {
+      width: Math.round(logical.width * dpr),
+      height: Math.round(logical.height * dpr),
+      left: Math.round(logical.left * dpr),
+      top: Math.round(logical.top * dpr)
+    };
+    
+    return {
+      // 論理ピクセル値
+      width: logical.width,
+      height: logical.height,
+      left: logical.left,
+      top: logical.top,
+      
+      // 物理ピクセル値
+      physicalWidth: physical.width,
+      physicalHeight: physical.height,
+      physicalLeft: physical.left,
+      physicalTop: physical.top,
+      
+      // DPR情報
+      dpr: dpr,
+      dprPercent: dpr * 100
+    };
   } catch (error) {
     Logger.error("ウィンドウ情報取得エラー:", error);
     
@@ -434,13 +460,18 @@ async function applyDefaultPresetIfNeeded() {
 // ウィンドウにプリセットを適用（確実に変換を適用するバージョン）
 async function applyPresetToWindow(windowId, preset) {
   try {
-    Logger.logPresetOperation(`適用："${preset.name}"`, async () => {
+    Logger.logPresetOperation(`"${preset.name}" を適用`, async () => {
       // 1. 元のプリセット値を出力
-      Logger.info("プリセット設定値:", preset);
+      Logger.info("1. 元のプリセット値:", {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left, 
+        top: preset.top,
+      });
       
       // 2. ユーザー設定のDPR値を取得
       const dpr = await getSystemDpr();
-      Logger.info(`DPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
       
       // 3. 変換計算
       let logicalWidth, logicalHeight, logicalLeft, logicalTop;
@@ -450,14 +481,14 @@ async function applyPresetToWindow(windowId, preset) {
       logicalLeft = Math.round(preset.left / dpr);
       logicalTop = Math.round(preset.top / dpr);
         
-      Logger.info("物理→論理ピクセル変換:");
+      Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
       
       // 変換計算の詳細を表形式で出力
       Logger.table({
-        幅: { 物理: preset.width, 変換式: `${preset.width} / ${dpr}`, 論理: logicalWidth },
-        高さ: { 物理: preset.height, 変換式: `${preset.height} / ${dpr}`, 論理: logicalHeight },
-        左位置: { 物理: preset.left, 変換式: `${preset.left} / ${dpr}`, 論理: logicalLeft },
-        上位置: { 物理: preset.top, 変換式: `${preset.top} / ${dpr}`, 論理: logicalTop }
+        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
       });
       
       // 4. 最終的な適用値を出力
@@ -468,28 +499,27 @@ async function applyPresetToWindow(windowId, preset) {
         top: logicalTop
       };
       
-      Logger.info("適用する最終値:", finalValues);
+      Logger.info("4. ウィンドウに適用する最終値:", finalValues);
     });
     
     // 5. ブラウザAPIに渡す
-    const dpr = await getSystemDpr();
     const finalValues = {
-      width: Math.round(preset.width / dpr),
-      height: Math.round(preset.height / dpr),
-      left: Math.round(preset.left / dpr),
-      top: Math.round(preset.top / dpr)
+      width: Math.round(preset.width / await getSystemDpr()),
+      height: Math.round(preset.height / await getSystemDpr()),
+      left: Math.round(preset.left / await getSystemDpr()),
+      top: Math.round(preset.top / await getSystemDpr())
     };
     
     const result = await browser.windows.update(windowId, finalValues);
     
     Logger.logPresetOperation('適用結果', () => {
-      Logger.info("ウィンドウ更新結果:", result);
+      Logger.info("5. 適用結果:", result);
     });
     
     return result;
   } catch (error) {
-    Logger.error("プリセット適用エラー:", error);
-    throw error;
+    handleError('プリセット適用', error);
+    throw error; // 必要に応じて再スロー
   }
 }
 
@@ -562,23 +592,29 @@ browser.runtime.onStartup.addListener(applyDefaultPresetIfNeeded);
 
 // 拡張機能がインストールされたときの処理を改善
 browser.runtime.onInstalled.addListener(async (details) => {
-  Logger.logSystemOperation('ライフサイクルイベント', () => {
-    Logger.info('インストールまたはアップデート:', details.reason);
+  console.log(`拡張機能イベント: ${details.reason}`);
+  
+  try {
+    // 現在の設定を確認
+    const data = await browser.storage.local.get('systemDpr');
+    logger.debug('現在のストレージ内容:', data);
     
-    if (details.reason === 'install') {
-      Logger.info('初めてのインストールです');
-      // 初めてインストールされたときの処理
-      browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME }).catch(error => {
-        Logger.error('デフォルト設定の保存に失敗:', error);
+    // インストール時、または設定がない場合
+    if (details.reason === 'install' && data.systemDpr === undefined) {
+      console.log('初期設定を適用します');
+      
+      // 初期設定を確実に保存
+      await browser.storage.local.set({
+        systemDpr: 100
       });
-    } else if (details.reason === 'update') {
-      Logger.info('アップデートされました', {
-        旧バージョン: details.previousVersion,
-        新バージョン: browser.runtime.getManifest().version
-      });
-      // アップデート時の処理
+      
+      // 保存確認
+      const checkData = await browser.storage.local.get('systemDpr');
+      console.log('初期設定後のストレージ内容:', checkData);
     }
-  });
+  } catch (err) {
+    handleError('初期設定', err);
+  }
 });
 
 // ストレージ変更検知
@@ -592,9 +628,7 @@ browser.storage.onChanged.addListener((changes, area) => {
 
 // メッセージリスナー
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  Logger.logSystemOperation('メッセージ受信', () => {
-    Logger.info('受信したメッセージ:', request);
-  });
+  console.log('メッセージを受信:', request);
   
   if (request.action === 'applyPreset') {
     applyPreset(request.preset);
@@ -606,6 +640,46 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     getSystemDpr(sendResponse);
     return true;  // 非同期レスポンスを維持
   }
+});
+
+// インストール時またはアップデート時の処理
+browser.runtime.onInstalled.addListener(details => {
+  console.log('インストールまたはアップデート:', details.reason);
+  
+  if (details.reason === 'install') {
+    console.log('初めてのインストールです');
+    // 初めてインストールされたときの処理
+    browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME });
+  } else if (details.reason === 'update') {
+    console.log('アップデートしました');
+    // アップデートされたときの処理
+  }
+  
+  // プリセットを初期化
+  browser.storage.local.get(DEFAULT_PRESET_NAME).then(item => {
+    if (!item[DEFAULT_PRESET_NAME]) {
+      console.log('デフォルトプリセットを初期化します');
+      const defaultPreset = {
+        name: DEFAULT_PRESET_NAME,
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT
+      };
+      browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+    }
+  });
+  
+  // 設定を初期化
+  browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(item => {
+    if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+      console.log('DPR設定を初期化します');
+      browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+    }
+  });
+  
+  // 起動時にデフォルトプリセットを適用
+  applyDefaultPresetIfNeeded().catch(err => {
+    handleError('デフォルトプリセット適用', err);
+  });
 });
 
 // 拡張機能が起動したときの処理
