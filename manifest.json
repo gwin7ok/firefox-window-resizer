@@ -1,10 +1,12 @@
 {
    "manifest_version": 2,
-   "name": "Window Resizer",
+   "name": "firefox-window-resizer",
+   "short_name": "FWR",
    "version": "1.0.0",
    "description": "簡単にブラウザウィンドウのサイズと位置を変更できます",
    "icons": {
       "16": "assets/icons/browser-icon-16.png",
+      "32": "assets/icons/browser-icon-32.png",
       "48": "assets/icons/browser-icon-48.png",
       "96": "assets/icons/browser-icon-96.png"
    },
@@ -12,21 +14,21 @@
       "default_icon": {
          "16": "assets/icons/browser-icon-16.png",
          "32": "assets/icons/browser-icon-32.png",
-         "48": "assets/icons/browser-icon-48.png"
+         "48": "assets/icons/browser-icon-48.png",
+         "96": "assets/icons/browser-icon-96.png"
       },
       "default_popup": "views/popup.html"
    },
    "background": {
-      "scripts": ["scripts/background.js"]
+      "scripts": ["scripts/browser-polyfill.min.js", "scripts/background.js"]
    },
    "permissions": [
       "storage",
       "tabs",
-      "contextMenus",  
+      "contextMenus",
       "scripting",
       "menus",
-      "activeTab",
-      "<all_urls>"
+      "activeTab"
    ],
    "options_ui": {
       "page": "views/settings.html",
@@ -34,17 +36,15 @@
    },
    "browser_specific_settings": {
       "gecko": {
-         "id": "window-resizer@example.com",
+         "id": "firefox-window-resizer@gwin7ok.com",
          "strict_min_version": "57.0"
       }
    },
    "web_accessible_resources": [
-      "views/popup.html",
-      "views/settings.html",
-      "views/preset-editor.html",
+      "views/*",
       "styles/*",
       "scripts/*",
       "images/*"
    ],
-   "content_security_policy": "script-src 'self' https://app.unpkg.com; object-src 'self'"
+   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'"
 }
