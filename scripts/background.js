@@ -671,7 +671,7 @@ async function initialize() {
   try {
     await browser.browserAction.setIcon({
       path: {
-        "48": "icons/browser-icon-48.png"
+        "48": "assets/icons/browser-icon-48.png"
       }
     });
     console.log('アイコンを設定しました');

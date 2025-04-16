@@ -4,15 +4,15 @@
    "version": "1.0.0",
    "description": "簡単にブラウザウィンドウのサイズと位置を変更できます",
    "icons": {
-      "16": "assets/icons/icon-16.png",
-      "48": "assets/icons/icon-48.png",
-      "96": "assets/icons/icon-96.png"
+      "16": "assets/icons/browser-icon-16.png",
+      "48": "assets/icons/browser-icon-48.png",
+      "96": "assets/icons/browser-icon-96.png"
    },
    "browser_action": {
       "default_icon": {
-         "16": "assets/icons/icon-16.png",
-         "32": "assets/icons/icon-32.png",
-         "48": "assets/icons/icon-48.png"
+         "16": "assets/icons/browser-icon-16.png",
+         "32": "assets/icons/browser-icon-32.png",
+         "48": "assets/icons/browser-icon-48.png"
       },
       "default_popup": "views/popup.html"
    },
