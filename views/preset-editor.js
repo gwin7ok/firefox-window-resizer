@@ -6,7 +6,6 @@ let sizeAdjustmentPerformed = false;
 document.addEventListener('DOMContentLoaded', async function() {
 await Logger.logSystemOperation('エディタ初期化', async () => {
   await Logger.info('プリセットエディタを初期化しています...');
-  });
   
   try {
     // URLパラメータからプリセットIDがあれば取得（編集モード）
@@ -45,6 +44,7 @@ await Logger.logSystemOperation('エディタ初期化', async () => {
     // エラーが発生しても新規作成として続行
     setDefaultValues();
   }
+});
 });
 
 // プリセットデータを読み込む（編集モード）
