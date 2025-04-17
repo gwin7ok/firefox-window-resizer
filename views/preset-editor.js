@@ -209,61 +209,87 @@ async function savePreset(event) {
   event.preventDefault();
   
   try {
-    // フォームから値を取得
-    const name = document.getElementById('preset-name').value;
-    const width = parseInt(document.getElementById('preset-width').value, 10);
-    const height = parseInt(document.getElementById('preset-height').value, 10);
-    const left = parseInt(document.getElementById('preset-left').value, 10);
-    const top = parseInt(document.getElementById('preset-top').value, 10);
-    
-    // 編集モードかどうか
-    const editId = document.getElementById('preset-form').dataset.editId;
-    
-    // 値の検証
-    if (isNaN(width) || width <= 0 || isNaN(height) || height <= 0) {
-      alert('幅と高さには正の値を入力してください');
-      return;
-    }
-    
-    // プリセットオブジェクトを作成 - 
-    const preset = {
-      id: editId || generatePresetId(),
-      name,
-      width,
-      height,
-      left,
-      top
-    };
-    
-    // ストレージから既存のプリセットを取得
-    const data = await browser.storage.local.get('presets');
-    let presets = Array.isArray(data.presets) ? data.presets : [];
-    
-    // 編集モードの場合は既存プリセットを置換、そうでなければ追加
-    if (editId) {
-      const index = presets.findIndex(p => p.id === editId);
-      if (index >= 0) {
-        presets[index] = preset;
+    // Logger でグループ化したログ出力を行う
+    await Logger.logPresetOperation('保存', async () => {
+      await Logger.info('プリセット保存処理を開始します');
+      
+      // フォームから値を取得
+      const name = document.getElementById('preset-name').value;
+      const width = parseInt(document.getElementById('preset-width').value, 10);
+      const height = parseInt(document.getElementById('preset-height').value, 10);
+      const left = parseInt(document.getElementById('preset-left').value, 10);
+      const top = parseInt(document.getElementById('preset-top').value, 10);
+      
+      // 編集モードかどうか
+      const editId = document.getElementById('preset-form').dataset.editId;
+      await Logger.info(`操作モード: ${editId ? '編集' : '新規作成'}`);
+      
+      // 値の検証
+      await Logger.info('入力値を検証中...');
+      if (isNaN(width) || width <= 0 || isNaN(height) || height <= 0) {
+        await Logger.error('入力値エラー: 幅や高さが無効な値です', { width, height });
+        alert('幅と高さには正の値を入力してください');
+        return;
+      }
+      
+      // プリセットオブジェクトを作成
+      const preset = {
+        id: editId || generatePresetId(),
+        name,
+        width,
+        height,
+        left,
+        top
+      };
+      await Logger.info('作成したプリセットオブジェクト:', preset);
+      
+      // ストレージから既存のプリセットを取得
+      await Logger.info('既存のプリセット一覧を取得中...');
+      const data = await browser.storage.local.get('presets');
+      let presets = Array.isArray(data.presets) ? data.presets : [];
+      await Logger.info(`現在のプリセット数: ${presets.length}`);
+      
+      // 編集モードの場合は既存プリセットを置換、そうでなければ追加
+      if (editId) {
+        const index = presets.findIndex(p => p.id === editId);
+        if (index >= 0) {
+          await Logger.info(`既存プリセットを更新 (インデックス: ${index})`);
+          presets[index] = preset;
+        } else {
+          await Logger.info('編集対象のプリセットが見つからないため新規追加します');
+          presets.push(preset);
+        }
       } else {
+        await Logger.info('新規プリセットを追加');
         presets.push(preset);
       }
-    } else {
-      presets.push(preset);
-    }
-    
-    // プリセットを保存
-    await browser.storage.local.set({ presets });
-    
-    // 保存完了を通知
-    await browser.runtime.sendMessage({ 
-      action: 'presetSaved', 
-      isEdit: !!editId 
+      
+      // プリセットを保存
+      await Logger.info('ストレージに保存中...');
+      await browser.storage.local.set({ presets });
+      await Logger.info('ストレージへの保存が完了しました');
+      
+      // 保存完了を通知
+      await Logger.info('保存完了通知を送信中...');
+      await browser.runtime.sendMessage({ 
+        action: 'presetSaved', 
+        isEdit: !!editId 
+      });
+      await Logger.info('保存完了通知の送信が完了しました');
+      
+      // 処理完了ログ
+      await Logger.info(`プリセット${editId ? '更新' : '作成'}が完了しました`);
+      await Logger.info(`更新後のプリセット総数: ${presets.length}`);
+      
+      // ウィンドウを閉じる
+      await Logger.info('エディタウィンドウを閉じます');
     });
     
-    // ウィンドウを閉じる
+    // ウィンドウを閉じる処理はグループ外に移動
+    // これにより必ずウィンドウが閉じられることを保証
     window.close();
   } catch (err) {
-  await Logger.error('プリセット保存エラー:', err);
+    await Logger.error('プリセット保存処理でエラーが発生しました:', err);
     alert('プリセットの保存に失敗しました: ' + err.message);
   }
 }
