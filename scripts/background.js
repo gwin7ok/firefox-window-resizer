@@ -6,7 +6,6 @@ const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
 
 // デバッグ情報表示を改善
 async function showDebugInfo() {
-  Logger.info('====== Window Resizer デバッグ情報 ======');
   
   // まず DPR 情報を非同期で取得・表示し、完了を待機
   await showDprInfo();
