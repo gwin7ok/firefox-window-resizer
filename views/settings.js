@@ -2,21 +2,21 @@
 document.addEventListener('DOMContentLoaded', async function () {
   await Logger.logSystemOperation('設定画面初期化', async () => {
     await Logger.info('設定画面を初期化しています...');
+
+    // プリセット一覧を読み込む
+    loadPresets();
+
+    // 初期DPR設定を読み込む
+    loadInitialDprSetting();
+
+    // イベントリスナーを設定
+    setupEventListeners();
+
+    // メッセージリスナーを設定
+    setupMessageListeners();
+
+    await Logger.info('設定画面の初期化が完了しました');
   });
-
-  // プリセット一覧を読み込む
-  loadPresets();
-
-  // 初期DPR設定を読み込む
-  loadInitialDprSetting();
-
-  // イベントリスナーを設定
-  setupEventListeners();
-
-  // メッセージリスナーを設定
-  setupMessageListeners();
-
-  await Logger.info('設定画面の初期化が完了しました');
 });
 
 // 初期DPR設定を読み込む
@@ -24,22 +24,22 @@ async function loadInitialDprSetting() {
   try {
     await Logger.logDprOperation('読み込み', async () => {
       await Logger.info('システムDPR設定を読み込んでいます...');
-    });
 
-    // background.jsのgetSystemDpr関数を呼び出す
-    const backgroundPage = await browser.runtime.getBackgroundPage();
-    backgroundPage.getSystemDpr(async function (dprValue) {
-      await Logger.info('読み込まれたDPR設定:', dprValue, '%');
+      // background.jsのgetSystemDpr関数を呼び出す
+      const backgroundPage = await browser.runtime.getBackgroundPage();
+      backgroundPage.getSystemDpr(async function (dprValue) {
+        await Logger.info('読み込まれたDPR設定:', dprValue, '%');
 
-      // フォームに設定
-      const dprInput = document.getElementById('system-dpr');
-      if (dprInput) {
-        dprInput.value = dprValue;
-      } else {
-        await Logger.error('DPR入力要素が見つかりません');
-      }
+        // フォームに設定
+        const dprInput = document.getElementById('system-dpr');
+        if (dprInput) {
+          dprInput.value = dprValue;
+        } else {
+          await Logger.error('DPR入力要素が見つかりません');
+        }
 
-      await Logger.info('DPR設定の読み込みが完了しました');
+        await Logger.info('DPR設定の読み込みが完了しました');
+      });
     });
   } catch (err) {
     await Logger.error('DPR設定読み込みエラー:', err);
@@ -74,17 +74,17 @@ function setupMessageListeners() {
   // タブメッセージを受信
   browser.runtime.onMessage.addListener(async message => {
     await Logger.logSystemOperation('メッセージ受信', async () => {
-      await Logger.info('メッセージを受信:', message);
+      await Logger.info('メッセージを受信[settings.js]:', message);
+
+      if (message.action === 'presetSaved') {
+        // プリセットが保存されたら一覧を更新
+        loadPresets();
+
+        // メッセージを表示
+        const actionText = message.isEdit ? '更新' : '作成';
+        showStatusMessage(`プリセットを${actionText}しました`);
+      }
     });
-
-    if (message.action === 'presetSaved') {
-      // プリセットが保存されたら一覧を更新
-      loadPresets();
-
-      // メッセージを表示
-      const actionText = message.isEdit ? '更新' : '作成';
-      showStatusMessage(`プリセットを${actionText}しました`);
-    }
   });
 }
 
@@ -124,91 +124,91 @@ async function loadPresets() {
   try {
     await Logger.logPresetOperation('リスト読み込み', async () => {
       await Logger.info('保存済みプリセットを読み込んでいます...');
-    });
 
-    const data = await browser.storage.local.get('presets');
-    const presets = data.presets || [];
+      const data = await browser.storage.local.get('presets');
+      const presets = data.presets || [];
 
-    const container = document.getElementById('presets-container');
-    const noPresetsMessage = document.getElementById('no-presets-message');
+      const container = document.getElementById('presets-container');
+      const noPresetsMessage = document.getElementById('no-presets-message');
 
-    // 既存のプリセット表示をクリア（メッセージ以外）
-    Array.from(container.children).forEach(child => {
-      if (child !== noPresetsMessage) {
-        container.removeChild(child);
+      // 既存のプリセット表示をクリア（メッセージ以外）
+      Array.from(container.children).forEach(child => {
+        if (child !== noPresetsMessage) {
+          container.removeChild(child);
+        }
+      });
+
+      if (presets.length === 0) {
+        noPresetsMessage.style.display = 'block';
+        return;
       }
+
+      noPresetsMessage.style.display = 'none';
+
+      // プリセット一覧テーブルを作成
+      const table = document.createElement('table');
+      table.className = 'presets-table';
+
+      // テーブルヘッダー
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+
+      ['プリセット名', 'サイズ', '位置', '操作'].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      // テーブルボディ
+      const tbody = document.createElement('tbody');
+
+      presets.forEach(preset => {
+        const row = document.createElement('tr');
+
+        // プリセット名
+        const nameCell = document.createElement('td');
+        nameCell.textContent = preset.name;
+        row.appendChild(nameCell);
+
+        // サイズ
+        const sizeCell = document.createElement('td');
+        sizeCell.textContent = `${preset.width}×${preset.height}`;
+        row.appendChild(sizeCell);
+
+        // 位置
+        const positionCell = document.createElement('td');
+        positionCell.textContent = `(${preset.left}, ${preset.top})`;
+        row.appendChild(positionCell);
+
+        // 操作ボタン
+        const actionCell = document.createElement('td');
+        actionCell.className = 'action-buttons';
+
+        const editButton = document.createElement('button');
+        editButton.className = 'edit-button';
+        editButton.textContent = '編集';
+        editButton.addEventListener('click', () => openPresetEditor(preset.id));
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-button';
+        deleteButton.textContent = '削除';
+        deleteButton.addEventListener('click', () => deletePreset(preset.id));
+
+        actionCell.appendChild(editButton);
+        actionCell.appendChild(deleteButton);
+        row.appendChild(actionCell);
+
+        tbody.appendChild(row);
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
+
+      await Logger.info(`${presets.length} 件のプリセットを表示しました`);
     });
-
-    if (presets.length === 0) {
-      noPresetsMessage.style.display = 'block';
-      return;
-    }
-
-    noPresetsMessage.style.display = 'none';
-
-    // プリセット一覧テーブルを作成
-    const table = document.createElement('table');
-    table.className = 'presets-table';
-
-    // テーブルヘッダー
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-
-    ['プリセット名', 'サイズ', '位置', '操作'].forEach(text => {
-      const th = document.createElement('th');
-      th.textContent = text;
-      headerRow.appendChild(th);
-    });
-
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    // テーブルボディ
-    const tbody = document.createElement('tbody');
-
-    presets.forEach(preset => {
-      const row = document.createElement('tr');
-
-      // プリセット名
-      const nameCell = document.createElement('td');
-      nameCell.textContent = preset.name;
-      row.appendChild(nameCell);
-
-      // サイズ
-      const sizeCell = document.createElement('td');
-      sizeCell.textContent = `${preset.width}×${preset.height}`;
-      row.appendChild(sizeCell);
-
-      // 位置
-      const positionCell = document.createElement('td');
-      positionCell.textContent = `(${preset.left}, ${preset.top})`;
-      row.appendChild(positionCell);
-
-      // 操作ボタン
-      const actionCell = document.createElement('td');
-      actionCell.className = 'action-buttons';
-
-      const editButton = document.createElement('button');
-      editButton.className = 'edit-button';
-      editButton.textContent = '編集';
-      editButton.addEventListener('click', () => openPresetEditor(preset.id));
-
-      const deleteButton = document.createElement('button');
-      deleteButton.className = 'delete-button';
-      deleteButton.textContent = '削除';
-      deleteButton.addEventListener('click', () => deletePreset(preset.id));
-
-      actionCell.appendChild(editButton);
-      actionCell.appendChild(deleteButton);
-      row.appendChild(actionCell);
-
-      tbody.appendChild(row);
-    });
-
-    table.appendChild(tbody);
-    container.appendChild(table);
-
-    await Logger.info(`${presets.length} 件のプリセットを表示しました`);
 
   } catch (err) {
     await Logger.error('プリセット読み込みエラー:', err);

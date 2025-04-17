@@ -602,7 +602,7 @@ browser.storage.onChanged.addListener(async (changes, area) => {
 
 // メッセージリスナー
 browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  await Logger.info('メッセージを受信:', request);
+  await Logger.info('メッセージを受信[background.js]:', request);
 
   if (request.action === 'applyPreset') {
     applyPreset(request.preset);
