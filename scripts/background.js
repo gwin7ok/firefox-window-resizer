@@ -4,17 +4,36 @@ const DEFAULT_PRESET_NAME = "default"; // DEFAULT_PRESET_NAME 変数を宣言
 const SYSTEM_DPR_STORAGE_KEY = 'systemDpr';
 const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
 
-// 開発用デバッグ情報
-function showDebugInfo() {
+// デバッグ情報表示を改善
+async function showDebugInfo() {
   Logger.info('====== Window Resizer デバッグ情報 ======');
   
-  // DPR設定を表示
-  browser.storage.local.get('systemDpr').then(data => {
-    const systemDpr = data.systemDpr || 100;
-    Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr/100}）`);
-    
-    // プリセット一覧を取得して表示
-    browser.storage.local.get('presets').then(data => {
+  // まず DPR 情報を非同期で取得・表示し、完了を待機
+  await showDprInfo();
+  
+  // DPR処理完了後に、プリセット情報を取得・表示
+  await showPresetInfo();
+}
+
+// DPR情報表示関数
+async function showDprInfo() {
+  try {
+    return await Logger.logDprOperation('システム設定確認', async () => {
+      const data = await browser.storage.local.get('systemDpr');
+      const systemDpr = data.systemDpr || 100;
+      Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr/100}）`);
+      return systemDpr;
+    });
+  } catch (err) {
+    Logger.error('DPR情報表示エラー:', err);
+  }
+}
+
+// プリセット情報表示関数
+async function showPresetInfo() {
+  try {
+    return await Logger.logPresetOperation('登録状況', async () => {
+      const data = await browser.storage.local.get('presets');
       const presets = Array.isArray(data.presets) ? data.presets : [];
       
       // プリセットの詳細情報をグループ化して出力
@@ -27,16 +46,18 @@ function showDebugInfo() {
           Logger.info(`  サイズ: ${preset.width}×${preset.height}`);
           Logger.info(`  位置: (${preset.left}, ${preset.top})`);
           
-          Logger.info(`  物理換算: ${Math.round(preset.width*(systemDpr/100))}×${Math.round(preset.height*(systemDpr/100))}`);
         });
       });
+      
+      return presets;
     });
-  });
+  } catch (err) {
+    Logger.error('プリセット情報表示エラー:', err);
+  }
 }
 
 // 起動時に実行
 showDebugInfo();
-
 
 // デバッグログを有効化
 browser.storage.local.get('debug').then(data => {
@@ -167,32 +188,32 @@ async function getSystemDpr(callback) {
       return cachedDpr;
     }
     
-    Logger.logDprOperation('読み込み', () => {
+    await Logger.logDprOperation('読み込み', async () => {  // async キーワードを追加
       Logger.info('storage.localからDPR設定を取得中...');
-    });
-    
-    const data = await browser.storage.local.get('systemDpr');
-    
-    Logger.logDprOperation('取得結果', () => {
-      Logger.info('取得したDPR設定データ:', data);
+
+      const data = await browser.storage.local.get('systemDpr');  // これで問題なく動作
+      
+      Logger.logDprOperation('取得結果', () => {
+        Logger.info('取得したDPR設定データ:', data);
+        
+        const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
+        const dprValue = percentValue / 100;
+        
+        Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+        
+        // キャッシュに保存
+        cachedDpr = dprValue;
+      });
       
       const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
       const dprValue = percentValue / 100;
       
-      Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+      if (callback) {
+        callback(percentValue);
+      }
       
-      // キャッシュに保存
-      cachedDpr = dprValue;
+      return dprValue;
     });
-    
-    const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
-    const dprValue = percentValue / 100;
-    
-    if (callback) {
-      callback(percentValue);
-    }
-    
-    return dprValue;
   } catch (err) {
     Logger.error('DPR設定読み込みエラー:', err);
     return 1.0; // エラー時のデフォルト値
