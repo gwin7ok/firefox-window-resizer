@@ -232,15 +232,23 @@ async function openPresetEditor(presetId = null) {
       const fullUrl = presetId ? `${url}?id=${presetId}` : url;
       
       try {
-        // .then()ではなくawaitを使用
-        const window = await browser.windows.create({
+        // 変更点: ウィンドウを作成して単純なプロパティだけを抽出
+        const createdWindow = await browser.windows.create({
           url: fullUrl,
           type: 'popup',
           width: 650,
-          height: 600  // 初期高さを600px
+          height: 600
         });
         
-        await Logger.info('プリセットエディタウィンドウを開きました:', window);
+        // 変更点: 必要な情報だけを抽出してログ出力
+        const windowInfo = {
+          id: createdWindow.id,
+          type: createdWindow.type,
+          width: createdWindow.width,
+          height: createdWindow.height,
+        };
+        
+        await Logger.info('プリセットエディタウィンドウを開きました:', windowInfo);
       } catch (windowErr) {
         // ウィンドウ作成エラーの処理
         await Logger.error('ウィンドウ作成エラー:', windowErr);
