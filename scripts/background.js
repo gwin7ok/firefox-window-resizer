@@ -24,7 +24,7 @@ async function showDprInfo() {
       return systemDpr;
     });
   } catch (err) {
-    Logger.error('DPR情報表示エラー:', err);
+  await Logger.error('DPR情報表示エラー:', err);
   }
 }
 
@@ -36,32 +36,31 @@ async function showPresetInfo() {
       const presets = Array.isArray(data.presets) ? data.presets : [];
       
       // プリセットの詳細情報をグループ化して出力
-        Logger.info(`登録プリセット数: ${presets.length}`);
+      await Logger.info(`登録プリセット数: ${presets.length}`);
         
-        // プリセットの詳細情報
-        presets.forEach((preset, index) => {
-          Logger.info(`[${index+1}] ${preset.name}`);
-          Logger.info(`  サイズ: ${preset.width}×${preset.height}`);
-          Logger.info(`  位置: (${preset.left}, ${preset.top})`);
-          
-        });
-      
+      // forEach を for...of に変更して非同期処理の完了を確実に待機
+      let index = 0;
+      for (const preset of presets) {
+        await Logger.info(`[${index+1}] ${preset.name}`);
+        await Logger.info(`  サイズ: ${preset.width}×${preset.height}`);
+        await Logger.info(`  位置: (${preset.left}, ${preset.top})`);
+        index++;
+      }
       
       return presets;
     });
   } catch (err) {
-    Logger.error('プリセット情報表示エラー:', err);
+    await Logger.error('プリセット情報表示エラー:', err);
   }
 }
 
-
 // デバッグログを有効化
-browser.storage.local.get('debug').then(data => {
+browser.storage.local.get('debug').then(async data => {
   const isDebugMode = data.debug === true;
   
   // デバッグモードが有効なら標準のconsoleメソッドを使用
   if (isDebugMode) {
-    Logger.info('デバッグモード有効: ログ出力を行います');
+  await Logger.info('デバッグモード有効: ログ出力を行います');
     return;
   }
   
@@ -73,8 +72,8 @@ browser.storage.local.get('debug').then(data => {
   const originalWarn = console.warn;
   
 
-}).catch(err => {
-  Logger.error('デバッグ設定の読み込み中にエラーが発生しました:', err);
+}).catch(async err => {
+await Logger.error('デバッグ設定の読み込み中にエラーが発生しました:', err);
 });
 
 // デバッグモード切替機能
@@ -135,27 +134,27 @@ async function initialize() {
     
     if (!data.presets) {
       await browser.storage.local.set({ presets: DEFAULT_PRESETS });
-      logger.info("デフォルトプリセットを初期化しました");
+    await Logger.info("デフォルトプリセットを初期化しました");
     }
     
     if (!data.settings) {
       await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
-      logger.info("デフォルト設定を初期化しました");
+    await Logger.info("デフォルト設定を初期化しました");
     }
     
     // ※安全のため、起動時のプリセット適用はスキップ
     if (APPLY_DEFAULT_PRESET_ON_STARTUP) {
       // 遅延実行して安定化を図る
       setTimeout(() => {
-        applyDefaultPresetIfNeeded().catch(err => {
-          logger.error("デフォルトプリセット適用エラー:", err);
+        applyDefaultPresetIfNeeded().catch(async err => {
+        await Logger.error("デフォルトプリセット適用エラー:", err);
         });
       }, 1500);
     } else {
-      logger.info("起動時のデフォルトプリセット適用をスキップしました");
+    await Logger.info("起動時のデフォルトプリセット適用をスキップしました");
     }
   } catch (error) {
-    logger.error("初期化エラー:", error);
+  await Logger.error("初期化エラー:", error);
   }
 }
 
@@ -175,17 +174,17 @@ async function getSystemDpr(callback) {
     }
     
     await Logger.logDprOperation('読み込み', async () => {  // async キーワードを追加
-      Logger.info('storage.localからDPR設定を取得中...');
+    await Logger.info('storage.localからDPR設定を取得中...');
 
       const data = await browser.storage.local.get('systemDpr');  // これで問題なく動作
       
-      Logger.logDprOperation('取得結果', () => {
-        Logger.info('取得したDPR設定データ:', data);
+    await Logger.logDprOperation('取得結果', async () => {
+      await Logger.info('取得したDPR設定データ:', data);
         
         const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
         const dprValue = percentValue / 100;
         
-        Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+      await Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
         
         // キャッシュに保存
         cachedDpr = dprValue;
@@ -201,15 +200,15 @@ async function getSystemDpr(callback) {
       return dprValue;
     });
   } catch (err) {
-    Logger.error('DPR設定読み込みエラー:', err);
+  await Logger.error('DPR設定読み込みエラー:', err);
     return 1.0; // エラー時のデフォルト値
   }
 }
 
 // キャッシュをクリアする関数
-function clearDprCache() {
+async function clearDprCache() {
   cachedDpr = null;
-  Logger.info('DPR設定キャッシュをクリアしました');
+await Logger.info('DPR設定キャッシュをクリアしました');
 }
 
 // 論理⇔物理ピクセル変換用のユーティリティ関数
@@ -275,7 +274,7 @@ async function applyPreset(preset) {
       // ここからすべての処理を一つのグループ内で完結させる
       
       // 1. 元のプリセット値を出力
-      Logger.info("1. 元のプリセット値:", {
+    await Logger.info("1. 元のプリセット値:", {
         width: preset.width,
         height: preset.height,
         left: preset.left, 
@@ -287,7 +286,7 @@ async function applyPreset(preset) {
       const systemDpr = data.systemDpr || 100;
       const dpr = systemDpr / 100;
       
-      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${systemDpr}%)`);
+    await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${systemDpr}%)`);
       
       // 3. 変換計算
       const logicalWidth = Math.round(preset.width / dpr);
@@ -295,10 +294,10 @@ async function applyPreset(preset) {
       const logicalLeft = Math.round(preset.left / dpr);
       const logicalTop = Math.round(preset.top / dpr);
       
-      Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+    await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
       
       // テーブル出力
-      Logger.table({
+    await Logger.table({
         幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
         高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
         左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
@@ -314,18 +313,18 @@ async function applyPreset(preset) {
         top: logicalTop
       };
       
-      Logger.info("4. ウィンドウに適用する最終値:", finalValues);
+    await Logger.info("4. ウィンドウに適用する最終値:", finalValues);
       
       // ブラウザAPIに渡す
       const result = await browser.windows.update(windowId, finalValues);
       
       // 5. 適用結果
-      Logger.info("5. 適用結果:", result);
+    await Logger.info("5. 適用結果:", result);
       
       return { success: true, result };
     });
   } catch (error) {
-    Logger.error('プリセット適用エラー:', error);
+  await Logger.error('プリセット適用エラー:', error);
     throw error;
   }
 }
@@ -333,7 +332,7 @@ async function applyPreset(preset) {
 // ウィンドウにプリセットを適用（内部実装 - ログ出力を含む）
 async function applyPresetToWindowInternal(windowId, preset) {
   // 1. 元のプリセット値を出力
-  Logger.info("1. 元のプリセット値:", {
+await Logger.info("1. 元のプリセット値:", {
     width: preset.width,
     height: preset.height,
     left: preset.left, 
@@ -342,7 +341,7 @@ async function applyPresetToWindowInternal(windowId, preset) {
   
   // 2. ユーザー設定のDPR値を取得
   const dpr = await getSystemDpr();
-  Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
   
   // 3. 変換計算
   let logicalWidth, logicalHeight, logicalLeft, logicalTop;
@@ -352,10 +351,10 @@ async function applyPresetToWindowInternal(windowId, preset) {
   logicalLeft = Math.round(preset.left / dpr);
   logicalTop = Math.round(preset.top / dpr);
     
-  Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
   
   // 変換計算の詳細を表形式で出力
-  Logger.table({
+await Logger.table({
     幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
     高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
     左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
@@ -370,13 +369,13 @@ async function applyPresetToWindowInternal(windowId, preset) {
     top: logicalTop
   };
   
-  Logger.info("4. ウィンドウに適用する最終値:", finalValues);
+await Logger.info("4. ウィンドウに適用する最終値:", finalValues);
   
   // ブラウザAPIに渡す
   const result = await browser.windows.update(windowId, finalValues);
   
   // 5. 適用結果を出力
-  Logger.info("5. 適用結果:", result);
+await Logger.info("5. 適用結果:", result);
   
   return result;
 }
@@ -391,23 +390,11 @@ async function applyPresetToWindow(windowId, preset) {
   }
 }
 
-// 拡大率設定を適用する関数
-async function applyZoom(zoom) {
-  Logger.info('拡大率適用:', zoom);
-  
-  // 既存のタブを更新
-  browser.tabs.query({}).then(tabs => {
-    tabs.forEach(tab => {
-      Logger.info('タブにズーム設定を適用:', tab.id, zoom);
-      browser.tabs.setZoom(tab.id, zoom);
-    });
-  });
-}
 
 // 設定ページを開く関数
 async function openSettingsPage() {
-  Logger.logSystemOperation('設定ページを開く', () => {
-    Logger.info('設定ページを開きます');
+await Logger.logSystemOperation('設定ページを開く', async () => {
+  await Logger.info('設定ページを開きます');
   });
   
   // 既存の設定タブを検索
@@ -432,19 +419,19 @@ async function openSettingsPage() {
 // スクリーン情報取得関数（修正版）
 async function getScreenInfo() {
   try {
-    Logger.logWindowOperation('スクリーン情報取得', () => {
+  await Logger.logWindowOperation('スクリーン情報取得', () => {
       // ユーザー設定のDPR値を取得（百分率）
-      browser.storage.local.get('systemDpr').then(data => {
+      browser.storage.local.get('systemDpr').then(async data => {
         const systemDpr = data.systemDpr || 100;  // デフォルトは100%
       
         // DPR値を小数に変換（例：125% → 1.25）
         const dprFactor = systemDpr / 100;
-        Logger.info('ユーザー設定DPR値:', systemDpr, '% (係数:', dprFactor, ')');
+      await Logger.info('ユーザー設定DPR値:', systemDpr, '% (係数:', dprFactor, ')');
       });
       
       // 現在のウィンドウを取得
-      browser.windows.getCurrent().then(windowInfo => {
-        Logger.info('現在のウィンドウ情報:', windowInfo);
+      browser.windows.getCurrent().then(async windowInfo => {
+      await Logger.info('現在のウィンドウ情報:', windowInfo);
       });
     });
     
@@ -468,10 +455,10 @@ async function getScreenInfo() {
       source: "userSettings"
     };
     
-    Logger.info('スクリーン情報結果:', result);
+  await Logger.info('スクリーン情報結果:', result);
     return result;
   } catch (error) {
-    Logger.error('スクリーン情報取得エラー:', error);
+  await Logger.error('スクリーン情報取得エラー:', error);
     
     // エラー時のフォールバック値
     return {
@@ -489,14 +476,14 @@ async function getScreenInfo() {
 // 現在のウィンドウ情報を取得（確実に変換を行うバージョン）
 async function getCurrentWindowInfo() {
   try {
-    Logger.logWindowOperation("現在の情報取得", async () => {
+  await Logger.logWindowOperation("現在の情報取得", async () => {
       // 1. 現在のウィンドウを取得
       const win = await browser.windows.getCurrent({ populate: true });
-      Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
+    await Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
       
       // 2. ユーザー設定のDPR値を取得
       const dpr = await getSystemDpr();
-      Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+    await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
       
       // 3. 論理ピクセル値（ブラウザから取得した値）
       const logical = {
@@ -515,7 +502,7 @@ async function getCurrentWindowInfo() {
       };
       
       // 5. 結果を出力
-      Logger.info("3. 最終的なウィンドウ情報:", {
+    await Logger.info("3. 最終的なウィンドウ情報:", {
         論理ピクセル値: logical,
         物理ピクセル値: physical,
         DPR: dpr,
@@ -559,7 +546,7 @@ async function getCurrentWindowInfo() {
       dprPercent: dpr * 100
     };
   } catch (error) {
-    Logger.error("ウィンドウ情報取得エラー:", error);
+  await Logger.error("ウィンドウ情報取得エラー:", error);
     
     // エラー時のフォールバック
     return {
@@ -579,7 +566,7 @@ async function applyDefaultPresetIfNeeded() {
   if (settings && settings.defaultPresetId !== null && presets) {
     const defaultPreset = presets.find(preset => preset.id === settings.defaultPresetId);
     if (defaultPreset) {
-      logger.info("デフォルトプリセットを適用します:", defaultPreset);
+    await Logger.info("デフォルトプリセットを適用します:", defaultPreset);
       
       // 現在のウィンドウに適用
       const windows = await browser.windows.getAll();
@@ -593,8 +580,8 @@ async function applyDefaultPresetIfNeeded() {
 // プリセットを保存（統一DPR版）
 async function savePreset(preset) {
   try {
-    Logger.logPresetOperation(`プリセット保存: "${preset.name}"`, () => {
-      Logger.info('プリセット保存を開始します');
+  await Logger.logPresetOperation(`プリセット保存: "${preset.name}"`, async () => {
+    await Logger.info('プリセット保存を開始します');
     });
     
     // 既存コード（プリセット保存処理）
@@ -613,7 +600,7 @@ async function savePreset(preset) {
     }
     
     await browser.storage.local.set({ presets });
-    Logger.info("保存したプリセット:", preset);
+  await Logger.info("保存したプリセット:", preset);
     
     return presets;
   } catch (error) {
@@ -644,11 +631,11 @@ browser.runtime.onStartup.addListener(async () => {
   try {
     // DPR設定の確認
     const dpr = await getSystemDpr();
-    Logger.info(`拡張機能起動: 設定されているDPR値は ${dpr} (拡大率: ${dpr * 100}%)`);
+  await Logger.info(`拡張機能起動: 設定されているDPR値は ${dpr} (拡大率: ${dpr * 100}%)`);
     
     // DPRが1.0でない場合は特別にログを出力
     if (dpr !== 1.0) {
-      Logger.info(`注意: 標準設定(100%)と異なる拡大率が設定されています。論理/物理ピクセル変換が有効です。`);
+    await Logger.info(`注意: 標準設定(100%)と異なる拡大率が設定されています。論理/物理ピクセル変換が有効です。`);
     }
   } catch (err) {
     handleError('起動時の設定チェック', err);
@@ -660,22 +647,20 @@ browser.runtime.onStartup.addListener(applyDefaultPresetIfNeeded);
 
 
 // ストレージ変更検知
-browser.storage.onChanged.addListener((changes, area) => {
+browser.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && changes.systemDpr) {
-    Logger.info('ストレージ変更検知:', changes.systemDpr);
-    Logger.info(`DPR設定変更: ${changes.systemDpr.oldValue || '未設定'} -> ${changes.systemDpr.newValue}%`);
+  await Logger.info('ストレージ変更検知:', changes.systemDpr);
+  await Logger.info(`DPR設定変更: ${changes.systemDpr.oldValue || '未設定'} -> ${changes.systemDpr.newValue}%`);
     clearDprCache(); // キャッシュをクリア
   }
 });
 
 // メッセージリスナー
-browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  Logger.info('メッセージを受信:', request);
+browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+await Logger.info('メッセージを受信:', request);
   
   if (request.action === 'applyPreset') {
     applyPreset(request.preset);
-  } else if (request.action === 'applyZoom') {
-    applyZoom(request.zoom);
   } else if (request.action === 'openSettingsPage') {
     openSettingsPage();
   } else if (request.action === 'getSystemDpr') {
@@ -780,8 +765,8 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 // エラーハンドリング関数
-function handleError(context, error) {
-  Logger.error(`${context}エラー:`, error);
+async function handleError(context, error) {
+await Logger.error(`${context}エラー:`, error);
   // エラー通知やリカバリー処理などもここで一元管理できる
 }
 

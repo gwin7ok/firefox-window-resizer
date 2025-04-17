@@ -1,7 +1,7 @@
 // DOMが読み込まれたら実行
 document.addEventListener('DOMContentLoaded', async function() {
-  Logger.logSystemOperation('設定画面初期化', () => {
-    Logger.info('設定画面を初期化しています...');
+await Logger.logSystemOperation('設定画面初期化', async () => {
+  await Logger.info('設定画面を初期化しています...');
   });
   
   // プリセット一覧を読み込む
@@ -16,33 +16,33 @@ document.addEventListener('DOMContentLoaded', async function() {
   // メッセージリスナーを設定
   setupMessageListeners();
   
-  Logger.info('設定画面の初期化が完了しました');
+await Logger.info('設定画面の初期化が完了しました');
 });
 
 // 初期DPR設定を読み込む
 async function loadInitialDprSetting() {
   try {
-    Logger.logDprOperation('読み込み', () => {
-      Logger.info('システムDPR設定を読み込んでいます...');
+  await Logger.logDprOperation('読み込み', async () => {
+    await Logger.info('システムDPR設定を読み込んでいます...');
     });
     
     // background.jsのgetSystemDpr関数を呼び出す
     const backgroundPage = await browser.runtime.getBackgroundPage();
-    backgroundPage.getSystemDpr(function(dprValue) {
-      Logger.info('読み込まれたDPR設定:', dprValue, '%');
+    backgroundPage.getSystemDpr(async function(dprValue) {
+    await Logger.info('読み込まれたDPR設定:', dprValue, '%');
       
       // フォームに設定
       const dprInput = document.getElementById('system-dpr');
       if (dprInput) {
         dprInput.value = dprValue;
       } else {
-        Logger.error('DPR入力要素が見つかりません');
+      await Logger.error('DPR入力要素が見つかりません');
       }
       
-      Logger.info('DPR設定の読み込みが完了しました');
+    await Logger.info('DPR設定の読み込みが完了しました');
     });
   } catch (err) {
-    Logger.error('DPR設定読み込みエラー:', err);
+  await Logger.error('DPR設定読み込みエラー:', err);
     // エラー表示
     handleCommonError('DPR設定読み込みエラー', err);
   }
@@ -72,9 +72,9 @@ function setupEventListeners() {
 // メッセージリスナーのセットアップ
 function setupMessageListeners() {
   // タブメッセージを受信
-  browser.runtime.onMessage.addListener(message => {
-    Logger.logSystemOperation('メッセージ受信', () => {
-      Logger.info('メッセージを受信:', message);
+  browser.runtime.onMessage.addListener(async message => {
+  await Logger.logSystemOperation('メッセージ受信', async () => {
+    await Logger.info('メッセージを受信:', message);
     });
     
     if (message.action === 'presetSaved') {
@@ -122,8 +122,8 @@ function showStatusMessage(message, duration = 3000) {
 // プリセット一覧を読み込む
 async function loadPresets() {
   try {
-    Logger.logPresetOperation('リスト読み込み', () => {
-      Logger.info('保存済みプリセットを読み込んでいます...');
+  await Logger.logPresetOperation('リスト読み込み', async () => {
+    await Logger.info('保存済みプリセットを読み込んでいます...');
     });
     
     const data = await browser.storage.local.get('presets');
@@ -208,24 +208,24 @@ async function loadPresets() {
     table.appendChild(tbody);
     container.appendChild(table);
     
-    Logger.info(`${presets.length} 件のプリセットを表示しました`);
+  await Logger.info(`${presets.length} 件のプリセットを表示しました`);
     
   } catch (err) {
-    Logger.error('プリセット読み込みエラー:', err);
+  await Logger.error('プリセット読み込みエラー:', err);
   }
 }
 
 // プリセット編集ウィンドウを開く
-function openPresetEditor(presetId = null) {
+async function openPresetEditor(presetId = null) {
   try {
     // 引数のタイプをチェック
     if (presetId && typeof presetId === 'object') {
-      Logger.warn('警告: openPresetEditorに不正な値が渡されました', presetId);
+    await Logger.warn('警告: openPresetEditorに不正な値が渡されました', presetId);
       presetId = null;
     }
     
-    Logger.logPresetOperation('編集', () => {
-      Logger.info('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
+  await Logger.logPresetOperation('編集', async () => {
+    await Logger.info('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
     });
     
     const url = browser.runtime.getURL('views/preset-editor.html');
@@ -237,14 +237,14 @@ function openPresetEditor(presetId = null) {
       type: 'popup',
       width: 650,
       height: 600  // 初期高さを600pxに増加
-    }).then(window => {
-      Logger.info('プリセットエディタウィンドウを開きました:', window);
-    }).catch(err => {
-      Logger.error('ウィンドウ作成エラー:', err);
+    }).then(async window => {
+    await Logger.info('プリセットエディタウィンドウを開きました:', window);
+    }).catch(async err => {
+    await Logger.error('ウィンドウ作成エラー:', err);
       alert('プリセットエディタを開けませんでした: ' + err.message);
     });
   } catch (err) {
-    Logger.error('エディタ起動エラー:', err);
+  await Logger.error('エディタ起動エラー:', err);
     alert('プリセットエディタの起動に失敗しました: ' + err.message);
   }
 }
@@ -256,28 +256,28 @@ async function deletePreset(id) {
   }
   
   try {
-    Logger.logPresetOperation('削除', () => {
-      Logger.info(`プリセット ID:${id} を削除します`);
-    });
+    await Logger.logPresetOperation('削除', async () => {
+      await Logger.info(`プリセット ID:${id} を削除します`);
+       
+      const data = await browser.storage.local.get('presets');
+      let presets = data.presets || [];
     
-    const data = await browser.storage.local.get('presets');
-    let presets = data.presets || [];
+     // 指定されたIDのプリセットを除外
+      presets = presets.filter(preset => preset.id !== id);
     
-    // 指定されたIDのプリセットを除外
-    presets = presets.filter(preset => preset.id !== id);
+     // 保存
+      await browser.storage.local.set({ presets });
     
-    // 保存
-    await browser.storage.local.set({ presets });
     
-    // プリセット一覧を更新
-    loadPresets();
-    
-    // 成功メッセージ
-    showStatusMessage('プリセットを削除しました');
-    Logger.info('プリセットの削除に成功しました');
-    
+      // 成功メッセージ
+      await Logger.info('プリセットの削除に成功しました');
+      showStatusMessage('プリセットを削除しました');
+
+      // プリセット一覧を更新
+      await loadPresets();
+    }); 
   } catch (err) {
-    Logger.error('プリセット削除エラー:', err);
+  await Logger.error('プリセット削除エラー:', err);
     alert('プリセットの削除に失敗しました');
   }
 }
@@ -289,8 +289,8 @@ async function saveDprSetting() {
     const dprInput = document.getElementById('system-dpr');
     const dprValue = parseInt(dprInput.value, 10);
     
-    Logger.logDprOperation('保存', () => {
-      Logger.info(`保存しようとしている拡大率: ${dprValue}%`);
+  await Logger.logDprOperation('保存', async () => {
+    await Logger.info(`保存しようとしている拡大率: ${dprValue}%`);
     });
     
     // 値のバリデーション
@@ -320,9 +320,9 @@ async function saveDprSetting() {
       }, 3000);
     }
     
-    Logger.info('拡大率設定の保存に成功しました');
+  await Logger.info('拡大率設定の保存に成功しました');
   } catch (err) {
-    Logger.error('DPR設定保存エラー:', err);
+  await Logger.error('DPR設定保存エラー:', err);
     alert('設定の保存に失敗しました: ' + err.message);
   }
 }

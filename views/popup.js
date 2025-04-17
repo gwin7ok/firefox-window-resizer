@@ -87,16 +87,17 @@ async function loadPresets() {
     container.appendChild(presetsTable);
     
     // プリセットを表示（列ごとに左揃え）
-    presets.forEach(preset => {
-      const presetItem = createPresetItem(preset);
+    for (const preset of presets) {
+      // await を追加して Promise の解決を待機
+      const presetItem = await createPresetItem(preset);
       presetsTable.appendChild(presetItem);
-    });
+    }
     
     await Logger.info('プリセットの読み込みが完了しました');
     
   });
   } catch (err) {
-    Logger.error('プリセット読み込みエラー:', err);
+  await Logger.error('プリセット読み込みエラー:', err);
     
     // エラー表示
     const container = document.getElementById('presets-container');
@@ -108,16 +109,16 @@ async function loadPresets() {
       errorMsg.textContent = 'プリセットの読み込みに失敗しました。';
       container.appendChild(errorMsg);
     } else {
-      Logger.error('エラーメッセージを表示できません: presets-container 要素が見つかりません');
+    await Logger.error('エラーメッセージを表示できません: presets-container 要素が見つかりません');
     }
   }
 }
 
 // プリセット項目を作成（列ごとに左揃え）
-function createPresetItem(preset) {
+async function createPresetItem(preset) {
   // プリセットの検証
   if (!preset || !preset.name) {
-    Logger.warn('無効なプリセット:', preset);
+  await Logger.warn('無効なプリセット:', preset);
     return document.createElement('div');
   }
   
@@ -155,9 +156,9 @@ function createPresetItem(preset) {
 // プリセットを適用
 async function applyPreset(preset) {
   try {
-    Logger.logPresetOperation('適用', () => {
-      Logger.info('プリセット適用リクエスト');
-      Logger.info('適用するプリセット:', preset);
+  await Logger.logPresetOperation('適用', async () => {
+    await Logger.info('プリセット適用リクエスト');
+    await Logger.info('適用するプリセット:', preset);
     });
     
     // バックグラウンドスクリプトにメッセージ送信
@@ -166,47 +167,47 @@ async function applyPreset(preset) {
       preset: preset
     });
     
-    Logger.info('適用結果:', response);
+  await Logger.info('適用結果:', response);
     
     // エラーチェック
     if (response && response.error) {
       throw new Error(response.error);
     }
     
-    Logger.info('プリセットを適用しました');
+  await Logger.info('プリセットを適用しました');
     
     // ポップアップを閉じる
     window.close();
   } catch (err) {
-    Logger.error('プリセット適用エラー:', err);
+  await Logger.error('プリセット適用エラー:', err);
     alert('プリセットの適用に失敗しました: ' + err.message);
   }
 }
 
 // 設定ページを開く
-function openSettings() {
+async function openSettings() {
   try {
-    Logger.logSystemOperation('設定ページへ移動', () => {
-      Logger.info('設定ページを開きます');
+  await Logger.logSystemOperation('設定ページへ移動', async () => {
+    await Logger.info('設定ページを開きます');
     });
 
     browser.runtime.openOptionsPage().then(() => {
       window.close(); // ポップアップを閉じる
-    }).catch(err => {
-      Logger.error('設定ページを開けませんでした:', err);
+    }).catch(async err => {
+    await Logger.error('設定ページを開けませんでした:', err);
       // 代替手段
       browser.tabs.create({ url: browser.runtime.getURL('views/settings.html') })
         .then(() => window.close());
     });
   } catch (err) {
-    Logger.error('設定ページを開く処理でエラー:', err);
+  await Logger.error('設定ページを開く処理でエラー:', err);
     alert('設定ページを開けませんでした: ' + err.message);
   }
 }
 
 // エラーハンドリングのグローバル設定
-window.addEventListener('error', function(event) {
-  Logger.error('グローバルエラー:', event.error);
+window.addEventListener('error', async function(event) {
+await Logger.error('グローバルエラー:', event.error);
   const errorDiv = document.createElement('div');
   errorDiv.className = 'error-message';
   errorDiv.style.color = 'red';
@@ -218,8 +219,8 @@ window.addEventListener('error', function(event) {
   document.body.insertBefore(errorDiv, document.body.firstChild);
 });
 
-window.addEventListener('unhandledrejection', function(event) {
-  Logger.error('未処理のPromise拒否:', event.reason);
+window.addEventListener('unhandledrejection', async function(event) {
+await Logger.error('未処理のPromise拒否:', event.reason);
   const errorDiv = document.createElement('div');
   errorDiv.className = 'error-message';
   errorDiv.style.color = 'red';

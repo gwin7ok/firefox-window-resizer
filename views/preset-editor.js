@@ -4,8 +4,8 @@
 let sizeAdjustmentPerformed = false;
 
 document.addEventListener('DOMContentLoaded', async function() {
-  Logger.logSystemOperation('エディタ初期化', () => {
-    Logger.info('プリセットエディタを初期化しています...');
+await Logger.logSystemOperation('エディタ初期化', async () => {
+  await Logger.info('プリセットエディタを初期化しています...');
   });
   
   try {
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // presetIdが有効な文字列かチェック
     const isValidId = presetId && typeof presetId === 'string' && presetId.trim() !== '';
     
-    Logger.info('起動モード:', isValidId ? '編集モード' : '新規作成モード', 'ID:', presetId || 'なし');
+  await Logger.info('起動モード:', isValidId ? '編集モード' : '新規作成モード', 'ID:', presetId || 'なし');
     
     // イベントリスナーを設定
     document.getElementById('preset-form').addEventListener('submit', savePreset);
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       setDefaultValues();
     }
     
-    Logger.info('プリセットエディタの初期化が完了しました');
+  await Logger.info('プリセットエディタの初期化が完了しました');
     
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       });
     });
   } catch (err) {
-    Logger.error('プリセットエディタの初期化に失敗しました:', err);
+  await Logger.error('プリセットエディタの初期化に失敗しました:', err);
     alert('エディタの初期化に失敗しました: ' + err.message);
     // エラーが発生しても新規作成として続行
     setDefaultValues();
@@ -52,22 +52,22 @@ async function loadPresetData(presetId) {
   try {
     // 引数のチェック
     if (!presetId || typeof presetId !== 'string') {
-      Logger.error('無効なプリセットID:', presetId);
+    await Logger.error('無効なプリセットID:', presetId);
       throw new Error('無効なプリセットIDです');
     }
     
-    Logger.logPresetOperation('データ読み込み', () => {
-      Logger.info('プリセットID:', presetId, 'のデータを読み込みます');
+  await Logger.logPresetOperation('データ読み込み', async () => {
+    await Logger.info('プリセットID:', presetId, 'のデータを読み込みます');
     });
     
     const data = await browser.storage.local.get('presets');
-    Logger.info('取得したデータ:', data);
+  await Logger.info('取得したデータ:', data);
     
     const presets = Array.isArray(data.presets) ? data.presets : [];
     
     const preset = presets.find(p => p.id === presetId);
     if (!preset) {
-      Logger.error('指定されたIDのプリセットが見つかりません:', presetId);
+    await Logger.error('指定されたIDのプリセットが見つかりません:', presetId);
       throw new Error('プリセットが見つかりませんでした');
     }
     
@@ -87,9 +87,9 @@ async function loadPresetData(presetId) {
     // 保存ボタンのテキスト変更
     document.getElementById('save-preset').textContent = 'プリセットを更新';
     
-    Logger.info('プリセットデータを読み込みました');
+  await Logger.info('プリセットデータを読み込みました');
   } catch (err) {
-    Logger.error('プリセットデータ読み込みエラー:', err);
+  await Logger.error('プリセットデータ読み込みエラー:', err);
     alert('プリセートデータの読み込みに失敗しました: ' + err.message);
     // エラーでも閉じずに新規作成として続行
     setDefaultValues();
@@ -97,9 +97,9 @@ async function loadPresetData(presetId) {
 }
 
 // デフォルト値をセット
-function setDefaultValues() {
-  Logger.logPresetOperation('デフォルト値', () => {
-    Logger.info('新規プリセットのデフォルト値を設定します');
+async function setDefaultValues() {
+await Logger.logPresetOperation('デフォルト値', async () => {
+  await Logger.info('新規プリセットのデフォルト値を設定します');
   });
   
   // 空のフォームで初期化
@@ -121,7 +121,7 @@ function setDefaultValues() {
 // 現在のウィンドウサイズとポジションを使用
 async function useCurrentWindowSize() {
   try {
-    Logger.logWindowOperation('現在のサイズを取得', async () => {
+  await Logger.logWindowOperation('現在のサイズを取得', async () => {
       // 1. 全てのウィンドウを取得
       const windows = await browser.windows.getAll();
       
@@ -135,7 +135,7 @@ async function useCurrentWindowSize() {
       }
       
       // 1. 元のウィンドウ情報を表示
-      Logger.info("1. メインブラウザウィンドウ情報:", mainWindow);
+    await Logger.info("1. メインブラウザウィンドウ情報:", mainWindow);
       
       // 論理ピクセル値（ブラウザから取得した値）
       const logicalValues = {
@@ -145,14 +145,14 @@ async function useCurrentWindowSize() {
         top: mainWindow.top
       };
       
-      Logger.info('メインウィンドウサイズ (論理ピクセル):', logicalValues);
+    await Logger.info('メインウィンドウサイズ (論理ピクセル):', logicalValues);
       
       // 2. ユーザー設定のDPR値を取得
       const data = await browser.storage.local.get('systemDpr');
       const systemDpr = data.systemDpr || 100;  // デフォルト100%
       const dprFactor = systemDpr / 100;
       
-      Logger.info(`2. ユーザー設定のDPR値: ${dprFactor} (拡大率: ${systemDpr}%)`);
+    await Logger.info(`2. ユーザー設定のDPR値: ${dprFactor} (拡大率: ${systemDpr}%)`);
       
       // 3. 論理ピクセル値を物理ピクセル値に変換
       const physicalWidth = Math.round(logicalValues.width * dprFactor);
@@ -160,10 +160,10 @@ async function useCurrentWindowSize() {
       const physicalLeft = Math.round(logicalValues.left * dprFactor);
       const physicalTop = Math.round(logicalValues.top * dprFactor);
       
-      Logger.info("3. 論理ピクセル値にDPRをかけて物理ピクセル値に変換");
+    await Logger.info("3. 論理ピクセル値にDPRをかけて物理ピクセル値に変換");
       
       // 変換計算の詳細をテーブル形式で出力
-      Logger.table({
+    await Logger.table({
         幅: { 元値: logicalValues.width, 計算式: `${logicalValues.width} * ${dprFactor}`, 変換後: physicalWidth },
         高さ: { 元値: logicalValues.height, 計算式: `${logicalValues.height} * ${dprFactor}`, 変換後: physicalHeight },
         左位置: { 元値: logicalValues.left, 計算式: `${logicalValues.left} * ${dprFactor}`, 変換後: physicalLeft },
@@ -178,7 +178,7 @@ async function useCurrentWindowSize() {
         top: physicalTop
       };
       
-      Logger.info("4. フォームに設定する物理ピクセル値:", finalValues);
+    await Logger.info("4. フォームに設定する物理ピクセル値:", finalValues);
       
       // フォームに設定
       document.getElementById('preset-width').value = physicalWidth;
@@ -199,7 +199,7 @@ async function useCurrentWindowSize() {
       }
     });
   } catch (err) {
-    Logger.error('ウィンドウサイズの取得エラー:', err);
+  await Logger.error('ウィンドウサイズの取得エラー:', err);
     alert('ウィンドウサイズの取得に失敗しました: ' + err.message);
   }
 }
@@ -263,7 +263,7 @@ async function savePreset(event) {
     // ウィンドウを閉じる
     window.close();
   } catch (err) {
-    Logger.error('プリセット保存エラー:', err);
+  await Logger.error('プリセット保存エラー:', err);
     alert('プリセットの保存に失敗しました: ' + err.message);
   }
 }
@@ -272,7 +272,7 @@ async function savePreset(event) {
 async function adjustWindowSize() {
   // すでに実行済みならスキップ
   if (sizeAdjustmentPerformed) {
-    Logger.debug('ウィンドウサイズはすでに調整済みです');
+  await Logger.debug('ウィンドウサイズはすでに調整済みです');
     return;
   }
   
@@ -296,7 +296,7 @@ async function adjustWindowSize() {
         const requiredHeight = Math.max(700, docHeight + 80); // 最小高さ700px
         const requiredWidth = Math.max(650, editorContainer.scrollWidth + 40);
         
-        Logger.info('必要なウィンドウサイズ計算:', {
+      await Logger.info('必要なウィンドウサイズ計算:', {
           ドキュメント高さ: docHeight,
           必要高さ: requiredHeight,
           必要幅: requiredWidth
@@ -304,7 +304,7 @@ async function adjustWindowSize() {
         
         // 非同期処理をawaitで待機してグループ内で完結させる
         const windowInfo = await browser.windows.getCurrent();
-        Logger.info('現在のウィンドウサイズ:', {高さ: windowInfo.height, 幅: windowInfo.width});
+      await Logger.info('現在のウィンドウサイズ:', {高さ: windowInfo.height, 幅: windowInfo.width});
         
         // リサイズ操作
         await browser.windows.update(windowInfo.id, {
@@ -315,15 +315,15 @@ async function adjustWindowSize() {
         // フラグを設定
         sizeAdjustmentPerformed = true;
         
-        Logger.info('ウィンドウサイズを調整しました:', {高さ: requiredHeight, 幅: requiredWidth});
+      await Logger.info('ウィンドウサイズを調整しました:', {高さ: requiredHeight, 幅: requiredWidth});
       } catch (windowErr) {
         // エラーもグループ内で処理
-        Logger.warn('ウィンドウ操作エラー:', windowErr);
+      await Logger.warn('ウィンドウ操作エラー:', windowErr);
       }
     });
   } catch (err) {
     // グループ外の全体的なエラーハンドリング
-    Logger.error('ウィンドウサイズ調整エラー:', err);
+  await Logger.error('ウィンドウサイズ調整エラー:', err);
   }
 }
 
