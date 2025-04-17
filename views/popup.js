@@ -3,7 +3,7 @@
 // DOMが完全に読み込まれてから実行
 document.addEventListener('DOMContentLoaded', async function() {
   await Logger.logSystemOperation('ポップアップ初期化', async () => { // コールバックに async を追加
-    Logger.info('ポップアップを初期化しています...');
+    await Logger.info('ポップアップを初期化しています...');
   
     // プリセット一覧を読み込む
     await loadPresets(); // これで正常に動作
@@ -14,31 +14,30 @@ document.addEventListener('DOMContentLoaded', async function() {
       settingsButton.addEventListener('click', openSettings);
     }
   
-    Logger.info('ポップアップの初期化が完了しました');
+    await Logger.info('ポップアップの初期化が完了しました');
   });
 });
 
 // プリセットを読み込む
 async function loadPresets() {
   try {
-    Logger.logPresetOperation('読み込み開始', () => {
-      Logger.info('プリセットを読み込んでいます...');
-    });
+    await Logger.logPresetOperation('読み込み', async () => {
+      await Logger.info('プリセットを読み込んでいます...');
     
     // コンテナを取得
     const container = document.getElementById('presets-container');
     if (!container) {
-      Logger.error('presets-container 要素が見つかりません');
+      await Logger.error('presets-container 要素が見つかりません');
       return;
     }
     
     // ストレージからプリセットを取得
     const data = await browser.storage.local.get('presets');
-    Logger.info('取得したデータ:', data);
+    await Logger.info('取得したデータ:', data);
     
     // presets が配列でない場合は空の配列を使用
     const presets = Array.isArray(data.presets) ? data.presets : [];
-    Logger.info('プリセット配列:', presets, '長さ:', presets.length);
+    await Logger.info('プリセット配列:', presets, '長さ:', presets.length);
     
     // コンテンツをクリア
     container.innerHTML = '';
@@ -93,9 +92,9 @@ async function loadPresets() {
       presetsTable.appendChild(presetItem);
     });
     
-    Logger.logPresetOperation('読み込み完了', () => {
-      Logger.info('プリセットの読み込みが完了しました');
-    });
+    await Logger.info('プリセットの読み込みが完了しました');
+    
+  });
   } catch (err) {
     Logger.error('プリセット読み込みエラー:', err);
     
