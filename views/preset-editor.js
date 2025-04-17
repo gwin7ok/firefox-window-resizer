@@ -1,5 +1,8 @@
 // プリセット編集ポップアップのスクリプト - エラーハンドリング改善
 
+// グローバルフラグを追加
+let sizeAdjustmentPerformed = false;
+
 document.addEventListener('DOMContentLoaded', async function() {
   Logger.logSystemOperation('エディタ初期化', () => {
     Logger.info('プリセットエディタを初期化しています...');
@@ -31,13 +34,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     Logger.info('プリセットエディタの初期化が完了しました');
     
-    // 即時実行
-    adjustWindowSize();
-    
-    // 遅延して再実行（レンダリングが完了した後）
-    setTimeout(() => {
-      adjustWindowSize();
-    }, 300);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        adjustWindowSize();
+      });
+    });
   } catch (err) {
     Logger.error('プリセットエディタの初期化に失敗しました:', err);
     alert('エディタの初期化に失敗しました: ' + err.message);
@@ -267,48 +268,62 @@ async function savePreset(event) {
   }
 }
 
-// ウィンドウサイズを内容に合わせて調整する関数を改善
-
-function adjustWindowSize() {
+// ウィンドウサイズを内容に合わせて調整する関数を改善 - 非同期対応グループ化
+async function adjustWindowSize() {
+  // すでに実行済みならスキップ
+  if (sizeAdjustmentPerformed) {
+    Logger.debug('ウィンドウサイズはすでに調整済みです');
+    return;
+  }
+  
   try {
-    // 必要な高さを計算
-    const editorContainer = document.querySelector('.editor-container');
-    if (!editorContainer) return;
-    
-    // ドキュメント全体の高さを取得（より正確）
-    const docHeight = Math.max(
-      document.body.scrollHeight,
-      document.body.offsetHeight,
-      document.documentElement.scrollHeight,
-      document.documentElement.offsetHeight
-    );
-    
-    // コンテンツの高さ + 余白（最小高さを確保）
-    const requiredHeight = Math.max(700, docHeight + 80); // 最小高さ600px
-    const requiredWidth = Math.max(650, editorContainer.scrollWidth + 40);
-    
-    Logger.logWindowOperation('サイズ調整', () => {
-      Logger.info('必要なウィンドウサイズ計算:', {
-        ドキュメント高さ: docHeight,
-        必要高さ: requiredHeight,
-        必要幅: requiredWidth
-      });
-    });
-    
-    // 現在のウィンドウサイズを取得し調整
-    browser.windows.getCurrent().then(windowInfo => {
-      Logger.info('現在のウィンドウサイズ:', {高さ: windowInfo.height, 幅: windowInfo.width});
+    // 一つのロググループとしてすべての処理をラップ
+    await Logger.logWindowOperation('サイズ調整', async () => {
+      // 必要な高さを計算
+      const editorContainer = document.querySelector('.editor-container');
+      if (!editorContainer) return;
       
-      // 常にリサイズする（十分なスペースを確保）
-      browser.windows.update(windowInfo.id, {
-        height: requiredHeight,
-        width: requiredWidth
-      }).then(() => {
+      try {
+        // ドキュメント全体の高さを取得（より正確）
+        const docHeight = Math.max(
+          document.body.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.scrollHeight,
+          document.documentElement.offsetHeight
+        );
+        
+        // コンテンツの高さ + 余白（最小高さを確保）
+        const requiredHeight = Math.max(700, docHeight + 80); // 最小高さ700px
+        const requiredWidth = Math.max(650, editorContainer.scrollWidth + 40);
+        
+        Logger.info('必要なウィンドウサイズ計算:', {
+          ドキュメント高さ: docHeight,
+          必要高さ: requiredHeight,
+          必要幅: requiredWidth
+        });
+        
+        // 非同期処理をawaitで待機してグループ内で完結させる
+        const windowInfo = await browser.windows.getCurrent();
+        Logger.info('現在のウィンドウサイズ:', {高さ: windowInfo.height, 幅: windowInfo.width});
+        
+        // リサイズ操作
+        await browser.windows.update(windowInfo.id, {
+          height: requiredHeight,
+          width: requiredWidth
+        });
+        
+        // フラグを設定
+        sizeAdjustmentPerformed = true;
+        
         Logger.info('ウィンドウサイズを調整しました:', {高さ: requiredHeight, 幅: requiredWidth});
-      }).catch(err => Logger.warn('ウィンドウリサイズエラー:', err));
-    }).catch(err => Logger.warn('ウィンドウ情報取得エラー:', err));
+      } catch (windowErr) {
+        // エラーもグループ内で処理
+        Logger.warn('ウィンドウ操作エラー:', windowErr);
+      }
+    });
   } catch (err) {
-    Logger.warn('ウィンドウサイズ調整エラー:', err);
+    // グループ外の全体的なエラーハンドリング
+    Logger.error('ウィンドウサイズ調整エラー:', err);
   }
 }
 
