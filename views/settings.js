@@ -220,31 +220,36 @@ async function openPresetEditor(presetId = null) {
   try {
     // 引数のタイプをチェック
     if (presetId && typeof presetId === 'object') {
-    await Logger.warn('警告: openPresetEditorに不正な値が渡されました', presetId);
+      await Logger.warn('警告: openPresetEditorに不正な値が渡されました', presetId);
       presetId = null;
     }
     
-  await Logger.logPresetOperation('編集', async () => {
-    await Logger.info('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
-    });
-    
-    const url = browser.runtime.getURL('views/preset-editor.html');
-    const fullUrl = presetId ? `${url}?id=${presetId}` : url;
-    
-    // 十分な初期サイズを設定
-    browser.windows.create({
-      url: fullUrl,
-      type: 'popup',
-      width: 650,
-      height: 600  // 初期高さを600pxに増加
-    }).then(async window => {
-    await Logger.info('プリセットエディタウィンドウを開きました:', window);
-    }).catch(async err => {
-    await Logger.error('ウィンドウ作成エラー:', err);
-      alert('プリセットエディタを開けませんでした: ' + err.message);
+    // すべての処理とログをグループ内に移動
+    await Logger.logPresetOperation('編集', async () => {
+      await Logger.info('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
+      
+      const url = browser.runtime.getURL('views/preset-editor.html');
+      const fullUrl = presetId ? `${url}?id=${presetId}` : url;
+      
+      try {
+        // .then()ではなくawaitを使用
+        const window = await browser.windows.create({
+          url: fullUrl,
+          type: 'popup',
+          width: 650,
+          height: 600  // 初期高さを600px
+        });
+        
+        await Logger.info('プリセットエディタウィンドウを開きました:', window);
+      } catch (windowErr) {
+        // ウィンドウ作成エラーの処理
+        await Logger.error('ウィンドウ作成エラー:', windowErr);
+        alert('プリセットエディタを開けませんでした: ' + windowErr.message);
+      }
     });
   } catch (err) {
-  await Logger.error('エディタ起動エラー:', err);
+    // 全体的なエラーハンドリング
+    await Logger.error('エディタ起動エラー:', err);
     alert('プリセットエディタの起動に失敗しました: ' + err.message);
   }
 }
