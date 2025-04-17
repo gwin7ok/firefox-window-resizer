@@ -21,7 +21,7 @@ async function showDprInfo() {
     return await Logger.logDprOperation('システム設定確認', async () => {
       const data = await browser.storage.local.get('systemDpr');
       const systemDpr = data.systemDpr || 100;
-      Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr/100}）`);
+      await Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr/100}）`);
       return systemDpr;
     });
   } catch (err) {
@@ -37,7 +37,6 @@ async function showPresetInfo() {
       const presets = Array.isArray(data.presets) ? data.presets : [];
       
       // プリセットの詳細情報をグループ化して出力
-      Logger.logPresetOperation('登録状況', () => {
         Logger.info(`登録プリセット数: ${presets.length}`);
         
         // プリセットの詳細情報
@@ -47,7 +46,7 @@ async function showPresetInfo() {
           Logger.info(`  位置: (${preset.left}, ${preset.top})`);
           
         });
-      });
+      
       
       return presets;
     });
@@ -56,8 +55,6 @@ async function showPresetInfo() {
   }
 }
 
-// 起動時に実行
-showDebugInfo();
 
 // デバッグログを有効化
 browser.storage.local.get('debug').then(data => {
@@ -83,17 +80,7 @@ browser.storage.local.get('debug').then(data => {
 
 // デバッグモード切替機能
 
-// デバッグモードの確認と設定
-browser.storage.local.get('debugMode').then(data => {
-  const isDebugMode = data.debugMode === true;
-  if (isDebugMode) {
-    Logger.logSystemOperation('デバッグモード', () => {
-      Logger.info('デバッグモードが有効です');
-    });
-  }
-}).catch(err => {
-  Logger.error('デバッグ設定の読み込みエラー:', err);
-});
+
 
 // プリセットの保存形式
 const DEFAULT_PRESETS = [
@@ -672,32 +659,6 @@ browser.runtime.onStartup.addListener(async () => {
 // ブラウザ起動イベント（再起動時にもデフォルトプリセットを適用）
 browser.runtime.onStartup.addListener(applyDefaultPresetIfNeeded);
 
-// 拡張機能がインストールされたときの処理を改善
-browser.runtime.onInstalled.addListener(async (details) => {
-  Logger.info(`拡張機能イベント: ${details.reason}`);
-  
-  try {
-    // 現在の設定を確認
-    const data = await browser.storage.local.get('systemDpr');
-    logger.debug('現在のストレージ内容:', data);
-    
-    // インストール時、または設定がない場合
-    if (details.reason === 'install' && data.systemDpr === undefined) {
-      Logger.info('初期設定を適用します');
-      
-      // 初期設定を確実に保存
-      await browser.storage.local.set({
-        systemDpr: 100
-      });
-      
-      // 保存確認
-      const checkData = await browser.storage.local.get('systemDpr');
-      Logger.info('初期設定後のストレージ内容:', checkData);
-    }
-  } catch (err) {
-    handleError('初期設定', err);
-  }
-});
 
 // ストレージ変更検知
 browser.storage.onChanged.addListener((changes, area) => {
@@ -724,73 +685,92 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// インストール時またはアップデート時の処理
-browser.runtime.onInstalled.addListener(details => {
-  Logger.info('インストールまたはアップデート:', details.reason);
+// インストール時またはアップデート時の処理を修正
+browser.runtime.onInstalled.addListener(async (details) => {
+  // まずイベントリスナーの即時処理部分を最小化
+  const reason = details.reason;
   
-  if (details.reason === 'install') {
-    Logger.info('初めてのインストールです');
-    // 初めてインストールされたときの処理
-    browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME });
-  } else if (details.reason === 'update') {
-    Logger.info('アップデートしました');
-    // アップデートされたときの処理
-  }
-  
-  // プリセットを初期化
-  browser.storage.local.get(DEFAULT_PRESET_NAME).then(item => {
-    if (!item[DEFAULT_PRESET_NAME]) {
-      Logger.info('デフォルトプリセットを初期化します');
-      const defaultPreset = {
-        name: DEFAULT_PRESET_NAME,
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT
-      };
-      browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+  // setTimeout を使って処理を遅延させる
+  setTimeout(async () => {
+    
+    try {
+      return await Logger.logSystemOperation('インストールまたはアップデート', async () => {
+      
+        if (reason === 'install') {
+          await Logger.info('初めてのインストールです');
+          // 初めてインストールされたときの処理
+          await browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME });
+        } else if (reason === 'update') {
+          await Logger.info('アップデートしました');
+          // アップデートされたときの処理
+        }
+      
+       // プリセットを初期化
+        await browser.storage.local.get(DEFAULT_PRESET_NAME).then(async item => {
+          if (!item[DEFAULT_PRESET_NAME]) {
+            await Logger.info('デフォルトプリセットを初期化します');
+            const defaultPreset = {
+              name: DEFAULT_PRESET_NAME,
+              width: DEFAULT_WIDTH,
+              height: DEFAULT_HEIGHT
+            };
+            await browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+          }
+       });
+      
+        // 設定を初期化
+        await browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(async item => {
+          if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+            await Logger.info('DPR設定を初期化します');
+            await browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+          }
+        });
+      
+        // 起動時にデフォルトプリセットを適用
+        await applyDefaultPresetIfNeeded().catch(err => {
+          handleError('デフォルトプリセット適用', err);
+        });
+      })
+    } catch (err) {
+      handleError('インストール処理', err);
     }
-  });
-  
-  // 設定を初期化
-  browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(item => {
-    if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
-      Logger.info('DPR設定を初期化します');
-      browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
-    }
-  });
-  
-  // 起動時にデフォルトプリセットを適用
-  applyDefaultPresetIfNeeded().catch(err => {
-    handleError('デフォルトプリセット適用', err);
-  });
-});
+  },100) 
+})
 
 // 拡張機能が起動したときの処理
 async function initialize() {
-  Logger.info('拡張機能を初期化します');
-  
-  // アイコンを設定
-  try {
-    await browser.browserAction.setIcon({
-      path: {
-        "48": "assets/icons/browser-icon-48.png"
-      }
-    });
-    Logger.info('アイコンを設定しました');
-  } catch (err) {
+  return await Logger.logSystemOperation('拡張機能初期化', async () => {
+    await Logger.info('拡張機能を初期化します');
+    
+    // アイコンを設定
+    try {
+      await browser.browserAction.setIcon({
+       path: {
+         "48": "assets/icons/browser-icon-48.png"
+        }
+      });
+      await Logger.info('アイコンを設定しました');
+    } catch (err) {
     handleError('アイコン設定', err);
-  }
+    }
   
-  // コンテキストメニューを作成
-  try {
-    await browser.contextMenus.create({
-      id: "open-settings",
-      title: "設定を開く",
-      contexts: ["browser_action"]
-    });
-    Logger.info('コンテキストメニューを作成しました');
-  } catch (err) {
-    handleError('コンテキストメニュー作成', err);
-  }
+    // コンテキストメニューを作成
+    try {
+      await browser.contextMenus.create({
+        id: "open-settings",
+        title: "設定を開く",
+       contexts: ["browser_action"]
+      });
+      await Logger.info('コンテキストメニューを作成しました');
+    } catch (err) {
+      handleError('コンテキストメニュー作成', err);
+    }
+
+    // 起動時に実行
+    await showDebugInfo();
+
+  })
+  
 }
 
 // コンテキストメニューがクリックされたときの処理

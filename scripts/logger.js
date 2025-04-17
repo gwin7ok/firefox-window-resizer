@@ -44,7 +44,7 @@ class Logger {
       Logger.debugMode = data.debugMode !== false; // 設定がなければデフォルトでtrue
       
       // 読み込み結果を直接console.logで出力（初期化中なのでLoggerは使わない）
-      console.log(`Logger デバッグモード: ${Logger.debugMode ? '有効' : '無効'}`);
+     // console.log(`Logger デバッグモード: ${Logger.debugMode ? '有効' : '無効'}`);
       
       // デバッグレベル設定も読み込み
       const levelData = await browser.storage.local.get('debugLevel');
@@ -360,8 +360,8 @@ class Logger {
       await Logger.initDebugMode();
       
       // 制限を削除し、常に初期化メッセージを表示
-      console.log('Logger デバッグモード: ' + (Logger.debugMode ? '有効' : '無効'));
-      console.log('Loggerを初期化しました');
+      // console.log('Logger デバッグモード: ' + (Logger.debugMode ? '有効' : '無効'));
+      // console.log('Loggerを初期化しました');
       
       // 互換性用の処理
       if (typeof window !== 'undefined') {
