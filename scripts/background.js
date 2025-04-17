@@ -173,10 +173,13 @@ async function getSystemDpr(callback) {
       return cachedDpr;
     }
 
-    await Logger.logDprOperation('読み込み', async () => {  // async キーワードを追加
+    // 戻り値を格納する変数
+    let resultDpr;
+
+    await Logger.logDprOperation('読み込み', async () => {
       await Logger.info('storage.localからDPR設定を取得中...');
 
-      const data = await browser.storage.local.get('systemDpr');  // これで問題なく動作
+      const data = await browser.storage.local.get('systemDpr');
 
       await Logger.logDprOperation('取得結果', async () => {
         await Logger.info('取得したDPR設定データ:', data);
@@ -188,6 +191,8 @@ async function getSystemDpr(callback) {
 
         // キャッシュに保存
         cachedDpr = dprValue;
+        // 戻り値を格納
+        resultDpr = dprValue;
       });
 
       const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
@@ -196,9 +201,13 @@ async function getSystemDpr(callback) {
       if (callback) {
         callback(percentValue);
       }
-
-      return dprValue;
+      
+      // ログ内でも変数に格納
+      resultDpr = dprValue;
     });
+
+    // 最後に確実に値を返す
+    return resultDpr || 1.0;
   } catch (err) {
     await Logger.error('DPR設定読み込みエラー:', err);
     return 1.0; // エラー時のデフォルト値
@@ -264,15 +273,10 @@ async function convertToPhysical(logicalWidth, logicalHeight) {
   return { width: physicalWidth, height: physicalHeight };
 }
 
-
-
-// プリセットを適用する関数（非同期処理でもグループを維持）
-async function applyPreset(preset) {
+// 内部実装（共通コア機能）- 直接呼び出しは想定しない
+async function _applyPresetInternal(windowId, preset, operationName) {
   try {
-    // 一つのグループとして全処理をラップ
-    return await Logger.logPresetOperation(`"${preset.name}" を適用`, async () => {
-      // ここからすべての処理を一つのグループ内で完結させる
-
+    return await Logger.logPresetOperation(operationName || `"${preset.name}" を適用`, async () => {
       // 1. 元のプリセット値を出力
       await Logger.info("1. 元のプリセット値:", {
         width: preset.width,
@@ -281,12 +285,9 @@ async function applyPreset(preset) {
         top: preset.top,
       });
 
-      // 2. DPRの取得（非同期処理）- ここで別のグループを作らない
-      const data = await browser.storage.local.get('systemDpr');
-      const systemDpr = data.systemDpr || 100;
-      const dpr = systemDpr / 100;
-
-      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${systemDpr}%)`);
+      // 2. DPRの取得（非同期処理）
+      const dpr = await getSystemDpr();
+      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
 
       // 3. 変換計算
       const logicalWidth = Math.round(preset.width / dpr);
@@ -305,7 +306,6 @@ async function applyPreset(preset) {
       });
 
       // 4. ウィンドウに適用
-      const windowId = await getCurrentWindowId();
       const finalValues = {
         width: logicalWidth,
         height: logicalHeight,
@@ -314,6 +314,7 @@ async function applyPreset(preset) {
       };
 
       await Logger.info("4. ウィンドウに適用する最終値:", finalValues);
+      await Logger.info(`対象ウィンドウID: ${windowId}`);
 
       // ブラウザAPIに渡す
       const result = await browser.windows.update(windowId, finalValues);
@@ -329,67 +330,28 @@ async function applyPreset(preset) {
   }
 }
 
-// ウィンドウにプリセットを適用（内部実装 - ログ出力を含む）
-async function applyPresetToWindowInternal(windowId, preset) {
-  // 1. 元のプリセット値を出力
-  await Logger.info("1. 元のプリセット値:", {
-    width: preset.width,
-    height: preset.height,
-    left: preset.left,
-    top: preset.top,
-  });
-
-  // 2. ユーザー設定のDPR値を取得
-  const dpr = await getSystemDpr();
-  await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-
-  // 3. 変換計算
-  let logicalWidth, logicalHeight, logicalLeft, logicalTop;
-
-  logicalWidth = Math.round(preset.width / dpr);
-  logicalHeight = Math.round(preset.height / dpr);
-  logicalLeft = Math.round(preset.left / dpr);
-  logicalTop = Math.round(preset.top / dpr);
-
-  await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-
-  // 変換計算の詳細を表形式で出力
-  await Logger.table({
-    幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-    高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-    左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-    上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
-  });
-
-  // 4. 最終的な適用値を出力
-  const finalValues = {
-    width: logicalWidth,
-    height: logicalHeight,
-    left: logicalLeft,
-    top: logicalTop
-  };
-
-  await Logger.info("4. ウィンドウに適用する最終値:", finalValues);
-
-  // ブラウザAPIに渡す
-  const result = await browser.windows.update(windowId, finalValues);
-
-  // 5. 適用結果を出力
-  await Logger.info("5. 適用結果:", result);
-
-  return result;
-}
-
-// ウィンドウにプリセットを適用（公開API - 呼び出すだけ）
-async function applyPresetToWindow(windowId, preset) {
+// 現在のウィンドウにプリセットを適用（ポップアップUIなどから呼ばれる）
+async function applyPreset(preset) {
   try {
-    return await applyPresetToWindowInternal(windowId, preset);
+    const windowId = await getCurrentWindowId();
+    return await _applyPresetInternal(windowId, preset);
   } catch (error) {
-    handleError('プリセット適用', error);
-    throw error; // 必要に応じて再スロー
+    await Logger.error('現在ウィンドウへのプリセット適用エラー:', error);
+    throw error;
   }
 }
 
+// 指定のウィンドウにプリセットを適用（起動時適用などから呼ばれる）
+async function applyPresetToWindow(windowId, preset) {
+  try {
+    const operationName = `"${preset.name}" をウィンドウ ${windowId} に適用`;
+    return await _applyPresetInternal(windowId, preset, operationName);
+  } catch (error) {
+    await Logger.error(`ウィンドウ ${windowId} へのプリセット適用エラー:`, error);
+    handleError('プリセット適用', error);
+    throw error;
+  }
+}
 
 // 設定ページを開く関数
 async function openSettingsPage() {
@@ -415,8 +377,6 @@ async function openSettingsPage() {
     }
   });
 }
-
-
 
 // 現在のウィンドウ情報を取得（確実に変換を行うバージョン）
 async function getCurrentWindowInfo() {
