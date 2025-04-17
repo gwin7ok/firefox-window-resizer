@@ -2,20 +2,20 @@
 
 // DOMが完全に読み込まれてから実行
 document.addEventListener('DOMContentLoaded', async function() {
-  Logger.logSystemOperation('ポップアップ初期化', () => {
+  await Logger.logSystemOperation('ポップアップ初期化', async () => { // コールバックに async を追加
     Logger.info('ポップアップを初期化しています...');
+  
+    // プリセット一覧を読み込む
+    await loadPresets(); // これで正常に動作
+    
+    // 設定ボタンがあれば設定画面を開くイベントリスナーを設定
+    const settingsButton = document.getElementById('settings-button');
+    if (settingsButton) {
+      settingsButton.addEventListener('click', openSettings);
+    }
+  
+    Logger.info('ポップアップの初期化が完了しました');
   });
-  
-  // プリセット一覧を読み込む
-  await loadPresets();
-  
-  // 設定ボタンがあれば設定画面を開くイベントリスナーを設定
-  const settingsButton = document.getElementById('settings-button');
-  if (settingsButton) {
-    settingsButton.addEventListener('click', openSettings);
-  }
-  
-  Logger.info('ポップアップの初期化が完了しました');
 });
 
 // プリセットを読み込む

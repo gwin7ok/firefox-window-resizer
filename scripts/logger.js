@@ -31,6 +31,11 @@ class Logger {
   static activeGroups = [];
 
   /**
+   * 初期化済みフラグ
+   */
+  static isInitialized = false;
+
+  /**
    * デバッグモードの初期化（ストレージから設定を読み込む）
    */
   static async initDebugMode() {
@@ -344,23 +349,37 @@ class Logger {
   }
   
   /**
-   * 初期化メソッド - background.js起動時に呼び出すこと
+   * 初期化メソッド - 完全な非同期処理に変更
+   * @returns {Promise<boolean>} 初期化完了を示すPromise
    */
-  static initialize() {
-    Logger.initDebugMode().then(() => {
-      Logger.info('Loggerを初期化しました');
-    });
+  static async initialize() {
+    // 二重初期化防止
+    if (Logger.isInitialized) return true;
     
-    // 既存のloggerオブジェクトを置き換え（互換性用）
-    if (typeof window !== 'undefined') {
-      window.logger = Logger.compatLogger;
+    try {
+      await Logger.initDebugMode();
+      
+      // 制限を削除し、常に初期化メッセージを表示
+      console.log('Logger デバッグモード: ' + (Logger.debugMode ? '有効' : '無効'));
+      console.log('Loggerを初期化しました');
+      
+      // 互換性用の処理
+      if (typeof window !== 'undefined') {
+        window.logger = Logger.compatLogger;
+      }
+      
+      Logger.isInitialized = true;
+      return true;
+    } catch (err) {
+      console.error('Logger初期化エラー:', err);
+      return false;
     }
   }
 }
 
 // 拡張機能の起動時に自動初期化
-document.addEventListener('DOMContentLoaded', () => {
-  Logger.initialize();
+document.addEventListener('DOMContentLoaded', async () => {
+  await Logger.initialize();
 });
 
 // グローバルに公開
