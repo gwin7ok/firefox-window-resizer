@@ -319,10 +319,21 @@ async function _applyPresetInternal(windowId, preset, operationName) {
       // ブラウザAPIに渡す
       const result = await browser.windows.update(windowId, finalValues);
 
-      // 5. 適用結果
-      await Logger.info("5. 適用結果:", result);
+      // 変更点: 結果オブジェクトを単純化してから出力
+      const simplifiedResult = {
+        id: result.id,
+        width: result.width,
+        height: result.height,
+        left: result.left,
+        top: result.top,
+        type: result.type,
+        state: result.state
+      };
 
-      return { success: true, result };
+      // 5. 適用結果
+      await Logger.info("5. 適用結果:", simplifiedResult);
+
+      return { success: true, result: simplifiedResult };
     });
   } catch (error) {
     await Logger.error('プリセット適用エラー:', error);
