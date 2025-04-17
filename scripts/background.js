@@ -14,17 +14,21 @@ async function showDebugInfo() {
   await showPresetInfo();
 }
 
-// DPR情報表示関数
+// DPR情報表示関数 - getSystemDprを活用
 async function showDprInfo() {
   try {
     return await Logger.logDprOperation('システム設定確認', async () => {
-      const data = await browser.storage.local.get('systemDpr');
-      const systemDpr = data.systemDpr || 100;
-      await Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${systemDpr / 100}）`);
+      // 既存のgetSystemDpr関数を利用
+      const dprFactor = await getSystemDpr();
+      const systemDpr = Math.round(dprFactor * 100);
+      
+      // 情報表示のみを行う（getSystemDpr内のログ出力と重複しないよう調整）
+//      await Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${dprFactor}）`);
       return systemDpr;
     });
   } catch (err) {
     await Logger.error('DPR情報表示エラー:', err);
+    return 100; // エラー時はデフォルト値を返す
   }
 }
 
@@ -181,29 +185,24 @@ async function getSystemDpr(callback) {
 
       const data = await browser.storage.local.get('systemDpr');
 
-      await Logger.logDprOperation('取得結果', async () => {
-        await Logger.info('取得したDPR設定データ:', data);
-
-        const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
-        const dprValue = percentValue / 100;
-
-        await Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
-
-        // キャッシュに保存
-        cachedDpr = dprValue;
-        // 戻り値を格納
-        resultDpr = dprValue;
-      });
+      await Logger.info('取得したDPR設定データ:', data);
 
       const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
       const dprValue = percentValue / 100;
 
+      await Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
+
+      // キャッシュに保存
+      cachedDpr = dprValue;
+      // 戻り値を格納
+      resultDpr = dprValue;
+
+
+
       if (callback) {
         callback(percentValue);
       }
-      
-      // ログ内でも変数に格納
-      resultDpr = dprValue;
+
     });
 
     // 最後に確実に値を返す
@@ -567,7 +566,8 @@ browser.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && changes.systemDpr) {
     await Logger.info('ストレージ変更検知:', changes.systemDpr);
     await Logger.info(`DPR設定変更: ${changes.systemDpr.oldValue || '未設定'} -> ${changes.systemDpr.newValue}%`);
-    clearDprCache(); // キャッシュをクリア
+    await clearDprCache(); // キャッシュをクリア
+    await getSystemDpr();
   }
 });
 

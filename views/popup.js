@@ -166,7 +166,7 @@ async function applyPreset(preset) {
         preset: preset
       });
 
-      await Logger.info('適用結果:', response);
+/*      await Logger.info('適用結果:', response);
 
       // エラーチェック
       if (response && response.error) {
@@ -174,7 +174,8 @@ async function applyPreset(preset) {
       }
 
       await Logger.info('プリセットを適用しました');
-    });
+  */
+      });
 
     // ポップアップを閉じる
     window.close();
