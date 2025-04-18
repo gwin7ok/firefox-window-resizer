@@ -18,12 +18,12 @@ async function showDebugInfo() {
 async function showDprInfo() {
   try {
     return await Logger.logDprOperation('システム設定確認', async () => {
-      // 既存のgetSystemDpr関数を利用
+      // 既存のgetSystemDpr関数を利用してDPR値を取得
       const dprFactor = await getSystemDpr();
       const systemDpr = Math.round(dprFactor * 100);
-      
-      // 情報表示のみを行う（getSystemDpr内のログ出力と重複しないよう調整）
-//      await Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${dprFactor}）`);
+
+      // DPR値をログに出力
+      await Logger.info(`システム設定DPR: ${systemDpr}%（係数: ${dprFactor}）`);
       return systemDpr;
     });
   } catch (err) {
@@ -557,8 +557,6 @@ browser.runtime.onStartup.addListener(async () => {
   }
 });
 
-// ブラウザ起動イベント（再起動時にもデフォルトプリセットを適用）
-browser.runtime.onStartup.addListener(applyDefaultPresetIfNeeded);
 
 
 // ストレージ変更検知
@@ -626,10 +624,6 @@ browser.runtime.onInstalled.addListener(async (details) => {
           }
         });
 
-        // 起動時にデフォルトプリセットを適用
-        await applyDefaultPresetIfNeeded().catch(err => {
-          handleError('デフォルトプリセット適用', err);
-        });
       })
     } catch (err) {
       handleError('インストール処理', err);
