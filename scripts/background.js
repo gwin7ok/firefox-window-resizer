@@ -1,8 +1,62 @@
-const DEFAULT_WIDTH = 1280;
-const DEFAULT_HEIGHT = 720;
-const DEFAULT_PRESET_NAME = "default"; // DEFAULT_PRESET_NAME 変数を宣言
-const SYSTEM_DPR_STORAGE_KEY = 'systemDpr';
-const APPLY_DEFAULT_PRESET_ON_STARTUP = false; // 安定化までfalseに
+// 設定値を集約するCONFIGオブジェクト
+const CONFIG = {
+  // ウィンドウのデフォルト設定
+  DEFAULT_WIDTH: 1280,
+  DEFAULT_HEIGHT: 720,
+  DEFAULT_LEFT: 0,
+  DEFAULT_TOP: 0,
+  
+  // プリセット関連
+  DEFAULT_PRESET_NAME: "default",
+  APPLY_DEFAULT_PRESET_ON_STARTUP: false, // 安定化までfalseに
+  
+  // キャッシュ設定
+  CACHE_LIFETIME_MS: 60000, // キャッシュの有効期間: 1分
+  
+  // ストレージキー
+  SYSTEM_DPR_STORAGE_KEY: 'systemDpr',
+  
+  // デバッグレベル設定
+  DEBUG_LEVEL: {
+    NONE: 0,    // 重要なメッセージのみ
+    ERROR: 1,   // エラーも表示
+    WARN: 2,    // 警告も表示
+    INFO: 3,    // 情報も表示
+    DEBUG: 4    // すべて表示
+  },
+  
+  // デフォルトのデバッグレベル
+  DEFAULT_DEBUG_LEVEL: 3, // INFO
+  
+  // 設定のデフォルト値
+  DEFAULT_SETTINGS: {
+    defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
+  },
+  
+  // デフォルトプリセット
+  DEFAULT_PRESETS: [
+    {
+      name: "新規プリセット",
+      width: 1024,
+      height: 768,
+      left: 0,
+      top: 0
+    }
+  ]
+};
+
+// 既存の定数をCONFIG値に置き換え
+const DEFAULT_WIDTH = CONFIG.DEFAULT_WIDTH;
+const DEFAULT_HEIGHT = CONFIG.DEFAULT_HEIGHT;
+const DEFAULT_PRESET_NAME = CONFIG.DEFAULT_PRESET_NAME;
+const SYSTEM_DPR_STORAGE_KEY = CONFIG.SYSTEM_DPR_STORAGE_KEY;
+const APPLY_DEFAULT_PRESET_ON_STARTUP = CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP;
+
+// 既存の配列・オブジェクト定数を更新
+const DEFAULT_PRESETS = CONFIG.DEFAULT_PRESETS;
+const DEFAULT_SETTINGS = CONFIG.DEFAULT_SETTINGS;
+const DEBUG_LEVEL = CONFIG.DEBUG_LEVEL;
+const CURRENT_DEBUG_LEVEL = CONFIG.DEFAULT_DEBUG_LEVEL;
 
 // デバッグ情報表示を改善
 async function showDebugInfo() {
@@ -81,54 +135,6 @@ browser.storage.local.get('debug').then(async data => {
 });
 
 // デバッグモード切替機能
-
-
-
-// プリセットの保存形式
-const DEFAULT_PRESETS = [
-  {
-    name: "新規プリセット",
-    width: 1024,
-    height: 768,
-    left: 0,
-    top: 0
-  }
-];
-
-// 設定のデフォルト値
-const DEFAULT_SETTINGS = {
-  defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
-};
-
-
-
-// デバッグレベル設定
-const DEBUG_LEVEL = {
-  NONE: 0,    // 重要なメッセージのみ
-  ERROR: 1,   // エラーも表示
-  WARN: 2,    // 警告も表示
-  INFO: 3,    // 情報も表示
-  DEBUG: 4    // すべて表示
-};
-
-// 現在のデバッグレベル
-const CURRENT_DEBUG_LEVEL = DEBUG_LEVEL.INFO;
-
-// ロガー関数
-const logger = {
-  debug: (...args) => {
-    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.DEBUG) Logger.debug(...args);
-  },
-  info: (...args) => {
-    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.INFO) Logger.info(...args);
-  },
-  warn: (...args) => {
-    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.WARN) Logger.warn(...args);
-  },
-  error: (...args) => {
-    if (CURRENT_DEBUG_LEVEL >= DEBUG_LEVEL.ERROR) Logger.error(...args);
-  }
-};
 
 // 初期化処理
 async function initialize() {
@@ -272,6 +278,76 @@ async function convertToPhysical(logicalWidth, logicalHeight) {
   return { width: physicalWidth, height: physicalHeight };
 }
 
+/**
+ * 物理ピクセル値を論理ピクセル値に変換する
+ * @param {Object} physicalValues - 物理ピクセル値 (width, height, left, top)
+ * @param {number} [dpr] - 使用するDPR値（指定なしの場合は取得）
+ * @returns {Promise<Object>} 論理ピクセル値とテーブル出力
+ */
+async function convertToLogicalPixels(physicalValues, dpr = null) {
+  // DPR値が指定されていない場合は取得
+  if (dpr === null) {
+    dpr = await getSystemDpr();
+  }
+  
+  // 変換処理
+  const result = {
+    width: Math.round(physicalValues.width / dpr),
+    height: Math.round(physicalValues.height / dpr),
+    left: Math.round(physicalValues.left / dpr),
+    top: Math.round(physicalValues.top / dpr)
+  };
+  
+  // ログ用テーブル（オプション）
+  const tableData = {
+    幅: { 元値: physicalValues.width, 計算式: `${physicalValues.width} / ${dpr}`, 変換後: result.width },
+    高さ: { 元値: physicalValues.height, 計算式: `${physicalValues.height} / ${dpr}`, 変換後: result.height },
+    左位置: { 元値: physicalValues.left, 計算式: `${physicalValues.left} / ${dpr}`, 変換後: result.left },
+    上位置: { 元値: physicalValues.top, 計算式: `${physicalValues.top} / ${dpr}`, 変換後: result.top }
+  };
+  
+  return { 
+    values: result, 
+    tableData: tableData,
+    dpr: dpr
+  };
+}
+
+/**
+ * 論理ピクセル値を物理ピクセル値に変換する
+ * @param {Object} logicalValues - 論理ピクセル値 (width, height, left, top)
+ * @param {number} [dpr] - 使用するDPR値（指定なしの場合は取得）
+ * @returns {Promise<Object>} 物理ピクセル値とテーブル出力
+ */
+async function convertToPhysicalPixels(logicalValues, dpr = null) {
+  // DPR値が指定されていない場合は取得
+  if (dpr === null) {
+    dpr = await getSystemDpr();
+  }
+  
+  // 変換処理
+  const result = {
+    width: Math.round(logicalValues.width * dpr),
+    height: Math.round(logicalValues.height * dpr),
+    left: Math.round(logicalValues.left * dpr),
+    top: Math.round(logicalValues.top * dpr)
+  };
+  
+  // ログ用テーブル（オプション）
+  const tableData = {
+    幅: { 元値: logicalValues.width, 計算式: `${logicalValues.width} * ${dpr}`, 変換後: result.width },
+    高さ: { 元値: logicalValues.height, 計算式: `${logicalValues.height} * ${dpr}`, 変換後: result.height },
+    左位置: { 元値: logicalValues.left, 計算式: `${logicalValues.left} * ${dpr}`, 変換後: result.left },
+    上位置: { 元値: logicalValues.top, 計算式: `${logicalValues.top} * ${dpr}`, 変換後: result.top }
+  };
+  
+  return { 
+    values: result, 
+    tableData: tableData,
+    dpr: dpr
+  };
+}
+
 // 内部実装（共通コア機能）- 直接呼び出しは想定しない
 async function _applyPresetInternal(windowId, preset, operationName) {
   try {
@@ -381,29 +457,22 @@ async function applyPresetWithOptions(preset, detachTab = false) {
       const dpr = await getSystemDpr();
       await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
 
-      // 3. 変換計算
-      const logicalWidth = Math.round(preset.width / dpr);
-      const logicalHeight = Math.round(preset.height / dpr);
-      const logicalLeft = Math.round(preset.left / dpr);
-      const logicalTop = Math.round(preset.top / dpr);
-
-      await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-
-      // テーブル出力
-      await Logger.table({
-        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
-      });
-
-      // 5. 適用値の準備
-      const logicalValues = {
-        width: logicalWidth,
-        height: logicalHeight,
-        left: logicalLeft,
-        top: logicalTop
+      // 3. 新しい変換関数を使用して物理→論理変換
+      const physicalValues = {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left,
+        top: preset.top
       };
+      
+      await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+      const conversion = await convertToLogicalPixels(physicalValues, dpr);
+      
+      // テーブル出力
+      await Logger.table(conversion.tableData);
+      
+      // 論理値を取得
+      const logicalValues = conversion.values;
       
       let result;
       
@@ -529,13 +598,9 @@ async function getCurrentWindowInfo() {
         top: win.top
       };
 
-      // 4. 物理ピクセル値に変換
-      const physical = {
-        width: Math.round(logical.width * dpr),
-        height: Math.round(logical.height * dpr),
-        left: Math.round(logical.left * dpr),
-        top: Math.round(logical.top * dpr)
-      };
+      // 4. 新しい共通関数を使用して物理ピクセル値に変換
+      const conversion = await convertToPhysicalPixels(logical, dpr);
+      const physical = conversion.values;
 
       // 5. 結果を出力
       await Logger.info("3. 最終的なウィンドウ情報:", {
@@ -557,12 +622,9 @@ async function getCurrentWindowInfo() {
       top: win.top
     };
 
-    const physical = {
-      width: Math.round(logical.width * dpr),
-      height: Math.round(logical.height * dpr),
-      left: Math.round(logical.left * dpr),
-      top: Math.round(logical.top * dpr)
-    };
+    // 新しい共通関数を使用
+    const conversion = await convertToPhysicalPixels(logical, dpr);
+    const physical = conversion.values;
 
     return {
       // 論理ピクセル値
@@ -586,10 +648,16 @@ async function getCurrentWindowInfo() {
 
     // エラー時のフォールバック
     return {
-      width: 1600, height: 900, left: 0, top: 0,
-      dpr: 1.0, dprPercent: 100,
-      physicalWidth: 1600, physicalHeight: 900,
-      physicalLeft: 0, physicalTop: 0
+      width: CONFIG.DEFAULT_WIDTH, 
+      height: CONFIG.DEFAULT_HEIGHT, 
+      left: CONFIG.DEFAULT_LEFT, 
+      top: CONFIG.DEFAULT_TOP,
+      dpr: 1.0, 
+      dprPercent: 100,
+      physicalWidth: CONFIG.DEFAULT_WIDTH, 
+      physicalHeight: CONFIG.DEFAULT_HEIGHT,
+      physicalLeft: CONFIG.DEFAULT_LEFT, 
+      physicalTop: CONFIG.DEFAULT_TOP
     };
   }
 }
@@ -677,8 +745,6 @@ browser.runtime.onStartup.addListener(async () => {
     handleError('起動時の設定チェック', err);
   }
 });
-
-
 
 // ストレージ変更検知
 browser.storage.onChanged.addListener(async (changes, area) => {
