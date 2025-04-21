@@ -1,34 +1,46 @@
-# Firefox Window Resizer
+# firefox-window-resizer
 
-## Overview
-The Firefox Window Resizer is a browser extension designed to help users resize their browser windows to emulate various screen resolutions. This tool is particularly useful for web developers and designers who need to test their applications across different device sizes.
+## 概要
 
-## Features
-- Resize the browser window to predefined screen resolutions.
-- Toggle tooltips for additional guidance.
-- Rotate the viewport for testing responsive designs.
-- Cycle through various presets for quick access to common resolutions.
+Firefox Window Resizerは、ブラウザウィンドウのサイズと位置をプリセットに基づいて変更できるFirefox拡張機能です。Web開発者やデザイナーが様々な画面サイズでウェブサイトをテストするのに役立ちます。
 
-## Installation
-1. Download the extension files from the repository.
-2. Open Firefox and navigate to `about:debugging`.
-3. Click on "This Firefox" in the sidebar.
-4. Click on "Load Temporary Add-on" and select the `manifest.json` file from the extension directory.
+## 主な機能
 
-## Usage
-- Click on the extension icon in the toolbar to open the popup.
-- Use the provided keyboard shortcuts to quickly resize the window or toggle tooltips.
-- Access the settings page to customize your experience.
+- 事前設定したサイズと位置にブラウザウィンドウを簡単に調整
+- カスタムプリセットの作成と管理
+- 現在のタブを別ウィンドウに分離して表示するオプション
+- 画面の拡大率（DPR）に対応した正確なサイズ設定
+- ブラウザ起動時に特定のプリセットを自動適用
 
-## Keyboard Shortcuts
-- **Show Popup**: `Alt + Shift + W`
-- **Toggle Tooltip**: `Alt + Shift + T`
-- **Rotate Viewport**: `Alt + Shift + R`
-- **Cycle Presets**: `Alt + Shift + Down`
-- **Cycle Presets in Reverse**: (No default shortcut assigned)
+## インストール
 
-## Contributing
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any suggestions or improvements.
+1. リポジトリからXPIファイルをダウンロード
+2. Firefoxで `about:addons` を開く
+3. 「拡張機能」ページの歯車アイコンをクリックし、「XPIからアドオンをインストール」を選択
+4. ダウンロードしたXPIファイルを選択してインストール
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for more details.
+## 使い方
+
+- ツールバーの拡張機能アイコンをクリックしてポップアップを開く
+- プリセットをクリックすると現在のウィンドウにサイズ設定が適用される
+- 「現在のタブを別ウィンドウに独立させる」チェックボックスを使うと、新しいウィンドウにタブが移動する
+- 設定画面からDPR値（画面の拡大率）やブラウザ起動時の自動適用設定を変更できる
+
+## 設定
+
+- **DPR設定**: 画面の拡大率に合わせて論理/物理ピクセル変換を行います（100%〜300%）
+- **起動時設定**: ブラウザ起動時に特定のプリセットを自動適用するかどうかを設定できます
+
+## プリセット管理
+
+- 設定画面から新規プリセット作成、編集、削除が可能
+- プリセットには名前、幅、高さ、左位置、上位置を設定
+- 「現在のウィンドウサイズを使用」ボタンで現在のウィンドウの値を取得可能
+
+## コントリビューション
+
+プルリクエストや機能改善の提案を歓迎します。問題や提案はIssueを作成してください。
+
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。

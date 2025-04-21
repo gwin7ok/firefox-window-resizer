@@ -4,7 +4,7 @@ $SourceFolder = "G:\Cursor_Folder\WRFFofGwin\$PackageName"                      
 $OutputFileName = "$PackageName@gwin7ok.com.xpi"                   # 出力するXPIファイル名
 $TempFolderName = "$PackageName-temp"                                     # 一時フォルダ名
 $ExcludeDirs = @(".git", ".vscode", "node_modules")                       # 除外するディレクトリ
-$ExcludeFiles = @("*.zip", "*.xpi", "*.log")                              # 除外するファイル
+$ExcludeFiles = @("*.zip", "*.xpi", "*.log","firefox-window-resizermakeXPI.ps1")                              # 除外するファイル
 $SevenZipPath = "C:\Program Files\7-Zip\7z.exe"                           # 7-Zipのパス
 $XpiDestinationFolder = "C:\Users\naoki\AppData\Roaming\Waterfox\Profiles\xkvvo1ku.main2forG\extensions" # .xpiファイルをコピーするフォルダ
 
