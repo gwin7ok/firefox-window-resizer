@@ -340,13 +340,134 @@ async function _applyPresetInternal(windowId, preset, operationName) {
   }
 }
 
+/**
+ * プリセットに基づいてウィンドウサイズを適用する統合関数
+ * @param {Object} preset - 適用するプリセット
+ * @param {boolean} detachTab - 現在のタブを別ウィンドウに分離するかどうか
+ * @returns {Promise<Object>} 適用結果
+ */
+async function applyPresetWithOptions(preset, detachTab = false) {
+  try {
+    const title = detachTab 
+      ? `"${preset.name}" を適用（タブ分離モード）` 
+      : `"${preset.name}" を適用`;
+    
+    return await Logger.logPresetOperation(title, async () => {
+      // 1. 現在のウィンドウとタブの情報を取得
+      const windowId = await getCurrentWindowId();
+      
+      // タブ分離モードの場合は現在のタブを取得
+      let activeTab = null;
+      if (detachTab) {
+        const tabs = await browser.tabs.query({ active: true, windowId });
+        
+        if (!tabs || tabs.length === 0) {
+          throw new Error('アクティブなタブが見つかりませんでした');
+        }
+        
+        activeTab = tabs[0];
+        await Logger.info(`選択中のタブ: "${activeTab.title}" (ID: ${activeTab.id})`);
+      }
+      
+      // 1. 元のプリセット値を出力
+      await Logger.info("1. 元のプリセット値:", {
+        width: preset.width,
+        height: preset.height,
+        left: preset.left,
+        top: preset.top,
+      });
+
+      // 2. DPRの取得（非同期処理）
+      const dpr = await getSystemDpr();
+      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
+
+      // 3. 変換計算
+      const logicalWidth = Math.round(preset.width / dpr);
+      const logicalHeight = Math.round(preset.height / dpr);
+      const logicalLeft = Math.round(preset.left / dpr);
+      const logicalTop = Math.round(preset.top / dpr);
+
+      await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
+
+      // テーブル出力
+      await Logger.table({
+        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
+        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
+        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
+        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
+      });
+
+      // 5. 適用値の準備
+      const logicalValues = {
+        width: logicalWidth,
+        height: logicalHeight,
+        left: logicalLeft,
+        top: logicalTop
+      };
+      
+      let result;
+      
+      // タブ分離モードによって処理を分岐
+      if (detachTab) {
+        // タブ分離モード: 新しいウィンドウを作成
+        await Logger.info(`4. タブ "${activeTab.title}" を新しいウィンドウに分離して適用`);
+        await Logger.info(`対象タブID: ${activeTab.id}`);
+        
+        const finalValues = {
+          tabId: activeTab.id,
+          ...logicalValues
+        };
+        
+        await Logger.info("新しいウィンドウに適用する最終値:", finalValues);
+        result = await browser.windows.create(finalValues);
+      } else {
+        // 通常モード: 既存ウィンドウを更新
+        await Logger.info("4. ウィンドウに適用する最終値:", logicalValues);
+        await Logger.info(`対象ウィンドウID: ${windowId}`);
+        
+        result = await browser.windows.update(windowId, logicalValues);
+      }
+
+      // 結果オブジェクトを単純化
+      const simplifiedResult = {
+        id: result.id,
+        width: result.width,
+        height: result.height,
+        left: result.left,
+        top: result.top,
+        type: result.type,
+        state: result.state,
+        detached: detachTab // タブ分離情報を追加
+      };
+      
+      // 5. 適用結果
+      await Logger.info("5. 適用結果:", simplifiedResult);
+      
+      return { success: true, result: simplifiedResult };
+    });
+  } catch (error) {
+    const errorType = detachTab ? 'タブ分離' : 'プリセット適用';
+    await Logger.error(`${errorType}エラー:`, error);
+    throw error;
+  }
+}
+
 // 現在のウィンドウにプリセットを適用（ポップアップUIなどから呼ばれる）
 async function applyPreset(preset) {
   try {
-    const windowId = await getCurrentWindowId();
-    return await _applyPresetInternal(windowId, preset);
+    return await applyPresetWithOptions(preset, false);
   } catch (error) {
     await Logger.error('現在ウィンドウへのプリセット適用エラー:', error);
+    throw error;
+  }
+}
+
+// 現在のタブを別ウィンドウに独立させてプリセットを適用する関数
+async function detachCurrentTabWithPreset(preset) {
+  try {
+    return await applyPresetWithOptions(preset, true);
+  } catch (error) {
+    await Logger.error('タブ分離エラー:', error);
     throw error;
   }
 }
@@ -575,12 +696,8 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
   if (request.action === 'applyPreset') {
     const detachTab = request.detachTab === true;
-    
-    if (detachTab) {
-      await detachCurrentTabWithPreset(request.preset);
-    } else {
-      await applyPreset(request.preset);
-    }
+    // 統合関数で処理
+    await applyPresetWithOptions(request.preset, detachTab);
   } else if (request.action === 'openSettingsPage') {
     openSettingsPage();
   } else if (request.action === 'getSystemDpr') {
@@ -588,78 +705,6 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     return true;  // 非同期レスポンスを維持
   }
 });
-
-// 現在のタブを別ウィンドウに独立させてプリセットを適用する関数
-async function detachCurrentTabWithPreset(preset) {
-  try {
-    return await Logger.logPresetOperation(`"${preset.name}" を適用（タブ分離モード）`, async () => {
-      // 1. 現在のウィンドウとタブ情報を取得
-      const windowId = await getCurrentWindowId();
-      const tabs = await browser.tabs.query({ active: true, windowId });
-      
-      if (!tabs || tabs.length === 0) {
-        throw new Error('アクティブなタブが見つかりませんでした');
-      }
-      
-      const activeTab = tabs[0];
-      
-      // 2. DPRの取得（非同期処理）
-      const dpr = await getSystemDpr();
-      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-      
-      // 3. 変換計算
-      const logicalWidth = Math.round(preset.width / dpr);
-      const logicalHeight = Math.round(preset.height / dpr);
-      const logicalLeft = Math.round(preset.left / dpr);
-      const logicalTop = Math.round(preset.top / dpr);
-
-      await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-      
-      // テーブル出力
-      await Logger.table({
-        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
-      });
-      
-      // 4. タブを分離して新しいウィンドウを作成
-      await Logger.info(`4. タブ "${activeTab.title}" を新しいウィンドウに分離して適用`);
-      await Logger.info(`対象タブID: ${activeTab.id}`);
-      
-      const finalValues = {
-        tabId: activeTab.id,
-        width: logicalWidth,
-        height: logicalHeight,
-        left: logicalLeft,
-        top: logicalTop
-      };
-      
-      await Logger.info("新しいウィンドウに適用する最終値:", finalValues);
-      
-      const result = await browser.windows.create(finalValues);
-
-      // 結果オブジェクトを単純化
-      const simplifiedResult = {
-        id: result.id,
-        width: result.width,
-        height: result.height,
-        left: result.left,
-        top: result.top,
-        type: result.type,
-        state: result.state
-      };
-      
-      // 5. 適用結果
-      await Logger.info("5. 適用結果:", simplifiedResult);
-      
-      return { success: true, result: simplifiedResult };
-    });
-  } catch (error) {
-    await Logger.error('タブ分離エラー:', error);
-    throw error;
-  }
-}
 
 // インストール時またはアップデート時の処理を修正
 browser.runtime.onInstalled.addListener(async (details) => {
