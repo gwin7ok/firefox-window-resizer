@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 初期DPR設定を読み込む
     loadInitialDprSetting();
 
+    // 起動時のデフォルトプリセット設定を読み込む
+    loadDefaultPresetSetting();
+
     // イベントリスナーを設定
     setupEventListeners();
 
@@ -67,24 +70,32 @@ function setupEventListeners() {
     event.preventDefault();
     saveDprSetting();
   });
+
+  // 起動時プリセット設定フォームのsubmitイベント
+  document.getElementById('startup-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    saveDefaultPresetSetting();
+  });
+
+  // 起動時プリセット設定保存ボタンのクリックイベント（念のため）
+  document.getElementById('save-startup-setting').addEventListener('click', function (event) {
+    event.preventDefault();
+    saveDefaultPresetSetting();
+  });
 }
 
 // メッセージリスナーのセットアップ
 function setupMessageListeners() {
-  // タブメッセージを受信
-  browser.runtime.onMessage.addListener(async message => {
-    await Logger.logSystemOperation('メッセージ受信', async () => {
-      await Logger.info('メッセージを受信[settings.js]:', message);
-
-      if (message.action === 'presetSaved') {
-        // プリセットが保存されたら一覧を更新
-        loadPresets();
-
-        // メッセージを表示
-        const actionText = message.isEdit ? '更新' : '作成';
-        showStatusMessage(`プリセットを${actionText}しました`);
-      }
-    });
+  browser.runtime.onMessage.addListener(async (message) => {
+    await Logger.info('メッセージを受信[settings.js]:', message);
+    
+    if (message.action === 'refreshSettings') {
+      // プリセットの変更通知を受けたら、プリセットリストと起動時設定を更新
+      await loadPresets();
+      await loadDefaultPresetSetting();
+      
+      showStatusMessage('プリセットリストを更新しました');
+    }
   });
 }
 
@@ -272,8 +283,9 @@ async function deletePreset(id) {
     await Logger.logPresetOperation('削除', async () => {
       await Logger.info(`プリセット ID:${id} を削除します`);
 
-      const data = await browser.storage.local.get('presets');
+      const data = await browser.storage.local.get(['presets', 'settings']);
       let presets = data.presets || [];
+      let settings = data.settings || {};
 
       // 指定されたIDのプリセットを除外
       presets = presets.filter(preset => preset.id !== id);
@@ -281,17 +293,30 @@ async function deletePreset(id) {
       // 保存
       await browser.storage.local.set({ presets });
 
+      // もし削除したプリセットが起動時設定に使用されていたら、設定をnullにリセット
+      if (settings.defaultPresetId === id) {
+        settings.defaultPresetId = null;
+        await browser.storage.local.set({ settings });
+        await Logger.info('削除されたプリセットが起動時設定に使用されていたため、設定をリセットしました');
+      }
 
       // 成功メッセージ
       await Logger.info('プリセットの削除に成功しました');
       showStatusMessage('プリセットを削除しました');
 
+      // 削除通知を送信
+      await browser.runtime.sendMessage({
+        action: 'presetDeleted',
+        presetId: id
+      });
+
       // プリセット一覧を更新
       await loadPresets();
+      await loadDefaultPresetSetting();
     });
   } catch (err) {
     await Logger.error('プリセット削除エラー:', err);
-    alert('プリセットの削除に失敗しました');
+    showStatusMessage('プリセットの削除に失敗しました: ' + err.message, true);
   }
 }
 
@@ -337,6 +362,94 @@ async function saveDprSetting() {
   } catch (err) {
     await Logger.error('DPR設定保存エラー:', err);
     alert('設定の保存に失敗しました: ' + err.message);
+  }
+}
+
+// 起動時のデフォルトプリセット設定を読み込む
+async function loadDefaultPresetSetting() {
+  try {
+    await Logger.logPresetOperation('デフォルトプリセット設定読み込み', async () => {
+      await Logger.info('起動時適用プリセット設定を読み込んでいます...');
+
+      // 設定を取得
+      const data = await browser.storage.local.get('settings');
+      const settings = data.settings || { defaultPresetId: null };
+      
+      await Logger.info('読み込まれた設定:', settings);
+
+      // プリセット一覧を取得
+      const presetsData = await browser.storage.local.get('presets');
+      const presets = presetsData.presets || [];
+      
+      // プリセットセレクトボックスに選択肢を追加
+      const selectBox = document.getElementById('default-preset');
+      if (!selectBox) {
+        await Logger.error('プリセット選択要素が見つかりません');
+        return;
+      }
+      
+      // 既存の選択肢をクリア（最初の「使用しない」オプション以外）
+      while (selectBox.options.length > 1) {
+        selectBox.remove(1);
+      }
+      
+      // プリセットを追加
+      presets.forEach(preset => {
+        const option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = preset.name;
+        selectBox.appendChild(option);
+      });
+      
+      // 保存されている設定値を選択
+      if (settings.defaultPresetId) {
+        selectBox.value = settings.defaultPresetId;
+      } else {
+        selectBox.value = "null";
+      }
+      
+      await Logger.info('起動時プリセット設定の読み込みが完了しました');
+    });
+  } catch (error) {
+    await Logger.error('起動時プリセット設定の読み込みエラー:', error);
+    showStatusMessage('起動時プリセット設定の読み込みに失敗しました', true);
+  }
+}
+
+// 起動時のデフォルトプリセット設定を保存
+async function saveDefaultPresetSetting() {
+  try {
+    await Logger.logPresetOperation('デフォルトプリセット設定保存', async () => {
+      await Logger.info('起動時適用プリセット設定を保存します...');
+      
+      // 選択された値を取得
+      const selectBox = document.getElementById('default-preset');
+      const selectedValue = selectBox.value;
+      
+      // "null"の場合はnullに変換、それ以外はそのまま
+      const defaultPresetId = selectedValue === "null" ? null : selectedValue;
+      
+      await Logger.info('保存する値:', { defaultPresetId });
+      
+      // 既存の設定を取得して更新
+      const data = await browser.storage.local.get('settings');
+      const settings = data.settings || {};
+      
+      settings.defaultPresetId = defaultPresetId;
+      
+      // 設定を保存
+      await browser.storage.local.set({ settings });
+      
+      await Logger.info('起動時プリセット設定を保存しました');
+      showStatusMessage('起動時プリセット設定を保存しました');
+      
+      // CONFIGを更新（実行時に反映させるため）
+      const backgroundPage = await browser.runtime.getBackgroundPage();
+      backgroundPage.CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = (defaultPresetId !== null);
+    });
+  } catch (error) {
+    await Logger.error('起動時プリセット設定の保存エラー:', error);
+    showStatusMessage('起動時プリセット設定の保存に失敗しました', true);
   }
 }
 

@@ -27,7 +27,23 @@
         <p id="no-presets-message">保存されたプリセットはありません</p>
       </div>
     </div>
-    
+    <br>
+    <div class="settings-section">
+      <h3>起動時設定</h3>
+      <form id="startup-form">
+        <div class="form-group">
+          <label for="default-preset">ブラウザ起動時に適用するプリセット：</label>
+          <select id="default-preset" name="default-preset">
+            <option value="null">(この機能を使用しない)</option>
+            <!-- プリセットはJavaScriptで動的に追加 -->
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" id="save-startup-setting">設定を保存</button>
+        </div>
+      </form>
+    </div>
+
     <!-- ディスプレイ設定 -->
     <div class="setting-section">
       <h3>ディスプレイ設定</h3>
@@ -44,6 +60,7 @@
         <div id="dpr-save-message" class="success-message" style="display: none;">設定を保存しました</div>
       </form>
     </div>
+
     
     <div class="footer">
       <p>Firefox Window Resizer © 2023-2025</p>

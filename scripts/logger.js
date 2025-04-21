@@ -17,7 +17,7 @@ class Logger {
   /**
    * 現在のデバッグ設定
    */
-  static debugLevel = Logger.DEBUG_LEVEL.INFO;
+  static debugLevel = Logger.DEBUG_LEVEL.ALL;
   static debugMode = true; // デフォルトは有効
   
   /**
