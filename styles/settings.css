@@ -370,3 +370,18 @@ label {
 .debug-actions .small:hover {
   background: #e0e0e0;
 }
+
+/* 既存のCSSに追加 */
+#default-preset {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  margin-top: 4px;
+}
+
+.settings-section {
+  margin-bottom: 30px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 20px;
+}

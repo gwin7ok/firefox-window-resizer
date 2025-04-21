@@ -8,7 +8,7 @@ const CONFIG = {
   
   // プリセット関連
   DEFAULT_PRESET_NAME: "default",
-  APPLY_DEFAULT_PRESET_ON_STARTUP: false, // 安定化までfalseに
+  APPLY_DEFAULT_PRESET_ON_STARTUP: true, // trueに変更：設定によって内部制御する方式に
   
   // キャッシュ設定
   CACHE_LIFETIME_MS: 60000, // キャッシュの有効期間: 1分
@@ -136,33 +136,120 @@ browser.storage.local.get('debug').then(async data => {
 
 // デバッグモード切替機能
 
-// 初期化処理
+/**
+ * 拡張機能の初期化処理
+ * @returns {Promise<void>}
+ */
 async function initialize() {
   try {
-    // ストレージをチェックし、初期データがなければ設定
-    const data = await browser.storage.local.get(['presets', 'settings']);
-
-    if (!data.presets) {
-      await browser.storage.local.set({ presets: DEFAULT_PRESETS });
-      await Logger.info("デフォルトプリセットを初期化しました");
-    }
-
-    if (!data.settings) {
-      await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
-      await Logger.info("デフォルト設定を初期化しました");
-    }
-
-    // ※安全のため、起動時のプリセット適用はスキップ
-    if (APPLY_DEFAULT_PRESET_ON_STARTUP) {
-      // 遅延実行して安定化を図る
-      setTimeout(() => {
-        applyDefaultPresetIfNeeded().catch(async err => {
-          await Logger.error("デフォルトプリセット適用エラー:", err);
+    return await Logger.logSystemOperation('拡張機能初期化', async () => {
+      await Logger.info('拡張機能を初期化します');
+      
+      // アイコン設定
+      try {
+        await browser.browserAction.setIcon({
+          path: {
+            16: "../icons/icon16.png",
+            32: "../icons/icon32.png",
+            48: "../icons/icon48.png",
+            128: "../icons/icon128.png"
+          }
         });
-      }, 1500);
-    } else {
-      await Logger.info("起動時のデフォルトプリセット適用をスキップしました");
-    }
+        await Logger.info("アイコンを設定しました");
+      } catch (error) {
+        await Logger.error("アイコン設定エラー:", error);
+      }
+      
+      // コンテキストメニュー設定
+      try {
+        browser.contextMenus.create({
+          id: "open-settings",
+          title: "設定を開く",
+          contexts: ["browser_action"]
+        });
+        await Logger.info("コンテキストメニューを作成しました");
+      } catch (error) {
+        await Logger.error("コンテキストメニュー作成エラー:", error);
+      }
+      
+      // DPR設定の確認
+      await showDprInfo();
+      
+      // ストレージをチェックし、初期データがなければ設定
+      const data = await browser.storage.local.get(['presets', 'settings']);
+
+      if (!data.presets) {
+        await browser.storage.local.set({ presets: DEFAULT_PRESETS });
+        await Logger.info("デフォルトプリセットを初期化しました");
+      } else {
+        // プリセット一覧を表示（デバッグ用）
+        await showPresetList();
+      }
+
+      if (!data.settings) {
+        await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
+        await Logger.info("デフォルト設定を初期化しました");
+      } else {
+        // 設定ログ出力を追加（デバッグ用）
+        await Logger.info("現在の設定:", data.settings);
+        if (data.settings.defaultPresetId) {
+          await Logger.info(`起動時適用プリセットID: ${data.settings.defaultPresetId}`);
+        } else {
+          await Logger.info("起動時適用プリセットは設定されていません");
+        }
+      }
+
+      // CONFIG状態の確認と補正
+      if (data.settings && data.settings.defaultPresetId) {
+        CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = true;
+        await Logger.info("CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP を true に設定しました");
+      } else {
+        CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = false;
+        await Logger.info("CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP を false に設定しました");
+      }
+
+      // DPR設定を初期化
+      await browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(async item => {
+        if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+          await Logger.info('DPR設定を初期化します');
+          await browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+        }
+      });
+
+      // デフォルトプリセットを初期化
+      await browser.storage.local.get(DEFAULT_PRESET_NAME).then(async item => {
+        if (!item[DEFAULT_PRESET_NAME]) {
+          await Logger.info('デフォルトプリセットを初期化します');
+          const defaultPreset = {
+            name: DEFAULT_PRESET_NAME,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT
+          };
+          await browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+        }
+      });
+
+      // 起動時のプリセット適用が有効な場合は実行
+      await Logger.info("起動時のデフォルトプリセット適用実行フラグ:", CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP);
+      if (CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP) {
+        await Logger.info("起動時のデフォルトプリセット適用を開始します");
+        
+        // 遅延実行して安定化を図る（遅延を少し長めに）
+        setTimeout(async () => {
+          try {
+            await Logger.info("遅延タイマー完了。プリセット適用を開始");
+            const result = await applyDefaultPresetIfNeeded();
+            await Logger.info("起動時プリセット適用結果:", result);
+          } catch (err) {
+            await Logger.error("デフォルトプリセット適用エラー:", err);
+          }
+        }, 2500);
+      } else {
+        await Logger.info("起動時のデフォルトプリセット適用はスキップしました");
+      }
+      
+      await Logger.info('拡張機能の初期化が完了しました');
+    });
   } catch (error) {
     await Logger.error("初期化エラー:", error);
   }
@@ -664,20 +751,48 @@ async function getCurrentWindowInfo() {
 
 // ブラウザ起動時のデフォルトプリセット適用
 async function applyDefaultPresetIfNeeded() {
-  const data = await browser.storage.local.get(['presets', 'settings']);
-  const { settings, presets } = data;
-
-  if (settings && settings.defaultPresetId !== null && presets) {
-    const defaultPreset = presets.find(preset => preset.id === settings.defaultPresetId);
-    if (defaultPreset) {
-      await Logger.info("デフォルトプリセットを適用します:", defaultPreset);
-
+  try {
+    return await Logger.logSystemOperation('起動時プリセット適用', async () => {
+      // 設定とプリセットを取得
+      const data = await browser.storage.local.get(['presets', 'settings']);
+      const { settings, presets } = data;
+      
+      // 設定チェック
+      if (!settings || settings.defaultPresetId === null) {
+        await Logger.info("起動時のプリセット適用は無効化されています");
+        return { applied: false, reason: "disabled" };
+      }
+      
+      if (!Array.isArray(presets) || presets.length === 0) {
+        await Logger.info("適用可能なプリセットがありません");
+        return { applied: false, reason: "no_presets" };
+      }
+      
+      // 指定されたIDのプリセットを検索
+      const defaultPreset = presets.find(preset => preset.id === settings.defaultPresetId);
+      
+      if (!defaultPreset) {
+        await Logger.warn(`指定されたプリセットID "${settings.defaultPresetId}" が見つかりません`);
+        return { applied: false, reason: "preset_not_found", presetId: settings.defaultPresetId };
+      }
+      
+      await Logger.info("起動時適用プリセット:", defaultPreset);
+      
       // 現在のウィンドウに適用
       const windows = await browser.windows.getAll();
-      if (windows.length > 0) {
-        await applyPresetToWindow(windows[0].id, defaultPreset);
+      if (windows.length === 0) {
+        await Logger.warn("適用可能なウィンドウがありません");
+        return { applied: false, reason: "no_windows" };
       }
-    }
+      
+      const result = await applyPresetToWindow(windows[0].id, defaultPreset);
+      
+      await Logger.info("起動時プリセットを適用しました");
+      return { applied: true, preset: defaultPreset, result };
+    });
+  } catch (error) {
+    await Logger.error("起動時プリセット適用エラー:", error);
+    return { applied: false, reason: "error", error: error.message };
   }
 }
 
@@ -762,13 +877,29 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
   if (request.action === 'applyPreset') {
     const detachTab = request.detachTab === true;
-    // 統合関数で処理
     await applyPresetWithOptions(request.preset, detachTab);
   } else if (request.action === 'openSettingsPage') {
     openSettingsPage();
   } else if (request.action === 'getSystemDpr') {
     getSystemDpr(sendResponse);
     return true;  // 非同期レスポンスを維持
+  } else if (request.action === 'presetSaved' || request.action === 'presetDeleted') {
+    // プリセットが保存/削除された時に、開いている設定ページへ通知
+    const settingsTabs = await browser.tabs.query({
+      url: browser.runtime.getURL('views/settings.html')
+    });
+    
+    // 各設定ページタブに更新を通知
+    for (const tab of settingsTabs) {
+      try {
+        await browser.tabs.sendMessage(tab.id, {
+          action: 'refreshSettings',
+          source: request.action
+        });
+      } catch (err) {
+        await Logger.warn(`設定ページへの通知エラー (タブID: ${tab.id}):`, err);
+      }
+    }
   }
 });
 
@@ -820,41 +951,6 @@ browser.runtime.onInstalled.addListener(async (details) => {
   }, 100)
 })
 
-// 拡張機能が起動したときの処理
-async function initialize() {
-  return await Logger.logSystemOperation('拡張機能初期化', async () => {
-    await Logger.info('拡張機能を初期化します');
-
-    // アイコンを設定
-    try {
-      await browser.browserAction.setIcon({
-        path: {
-          "48": "assets/icons/browser-icon-48.png"
-        }
-      });
-      await Logger.info('アイコンを設定しました');
-    } catch (err) {
-      handleError('アイコン設定', err);
-    }
-
-    // コンテキストメニューを作成
-    try {
-      await browser.contextMenus.create({
-        id: "open-settings",
-        title: "設定を開く",
-        contexts: ["browser_action"]
-      });
-      await Logger.info('コンテキストメニューを作成しました');
-    } catch (err) {
-      handleError('コンテキストメニュー作成', err);
-    }
-
-    // 起動時に実行
-    await showDebugInfo();
-
-  })
-
-}
 
 // コンテキストメニューがクリックされたときの処理
 browser.contextMenus.onClicked.addListener((info, tab) => {
