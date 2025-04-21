@@ -149,10 +149,9 @@ async function initialize() {
       try {
         await browser.browserAction.setIcon({
           path: {
-            16: "../icons/icon16.png",
-            32: "../icons/icon32.png",
-            48: "../icons/icon48.png",
-            128: "../icons/icon128.png"
+            16: "../assets/icons/icon-16.png",
+            32: "../assets/icons/icon-32.png",
+            48: "../assets/icons/icon-48.png",
           }
         });
         await Logger.info("アイコンを設定しました");
@@ -183,7 +182,7 @@ async function initialize() {
         await Logger.info("デフォルトプリセットを初期化しました");
       } else {
         // プリセット一覧を表示（デバッグ用）
-        await showPresetList();
+        await showPresetInfo();
       }
 
       if (!data.settings) {

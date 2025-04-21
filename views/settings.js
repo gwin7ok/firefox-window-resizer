@@ -443,9 +443,7 @@ async function saveDefaultPresetSetting() {
       await Logger.info('起動時プリセット設定を保存しました');
       showStatusMessage('起動時プリセット設定を保存しました');
       
-      // CONFIGを更新（実行時に反映させるため）
-      const backgroundPage = await browser.runtime.getBackgroundPage();
-      backgroundPage.CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = (defaultPresetId !== null);
+
     });
   } catch (error) {
     await Logger.error('起動時プリセット設定の保存エラー:', error);
