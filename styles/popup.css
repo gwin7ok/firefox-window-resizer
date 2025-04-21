@@ -144,3 +144,27 @@ body {
   margin-bottom: 10px;
   text-align: center;
 }
+
+/* オプション部分のスタイル */
+.options-container {
+  margin: 10px 0;
+  padding: 8px;
+  background-color: #f9f9fa;
+  border-radius: 4px;
+}
+
+.detach-option {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #444;
+  cursor: pointer;
+}
+
+.detach-option input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.detach-option span {
+  line-height: 1.4;
+}
