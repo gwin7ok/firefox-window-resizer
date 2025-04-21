@@ -1,5 +1,8 @@
 // ポップアップのJavaScript処理
 
+// タブ分離オプション状態
+let detachTabOption = false;
+
 // DOMが完全に読み込まれてから実行
 document.addEventListener('DOMContentLoaded', async function () {
   await Logger.logSystemOperation('ポップアップ初期化', async () => { // コールバックに async を追加
@@ -7,6 +10,16 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // プリセット一覧を読み込む
     await loadPresets(); // これで正常に動作
+
+    // タブ分離オプションのイベントリスナー設定
+    const detachTabCheckbox = document.getElementById('detach-tab-checkbox');
+    if (detachTabCheckbox) {
+      detachTabCheckbox.checked = false; // 毎回初期化
+      detachTabCheckbox.addEventListener('change', function(e) {
+        detachTabOption = e.target.checked;
+        Logger.info(`タブ分離オプション: ${detachTabOption ? '有効' : '無効'}`);
+      });
+    }
 
     // 設定ボタンがあれば設定画面を開くイベントリスナーを設定
     const settingsButton = document.getElementById('settings-button');
@@ -153,29 +166,20 @@ async function createPresetItem(preset) {
   return item;
 }
 
-// プリセットを適用
+// プリセットを適用（タブ分離オプション対応）
 async function applyPreset(preset) {
   try {
     await Logger.logPresetOperation('適用', async () => {
       await Logger.info('プリセット適用リクエスト');
-      await Logger.info('適用するプリセット:', preset);
+      await Logger.info(`適用するプリセット: ${preset.name} (タブ分離: ${detachTabOption ? '有効' : '無効'})`);
 
       // バックグラウンドスクリプトにメッセージ送信
       const response = await browser.runtime.sendMessage({
         action: 'applyPreset',
-        preset: preset
+        preset: preset,
+        detachTab: detachTabOption // タブ分離オプションを追加
       });
-
-/*      await Logger.info('適用結果:', response);
-
-      // エラーチェック
-      if (response && response.error) {
-        throw new Error(response.error);
-      }
-
-      await Logger.info('プリセットを適用しました');
-  */
-      });
+    });
 
     // ポップアップを閉じる
     window.close();
