@@ -173,11 +173,16 @@ async function applyPreset(preset) {
       await Logger.info('プリセット適用リクエスト');
       await Logger.info(`適用するプリセット: ${preset.name} (タブ分離: ${detachTabOption ? '有効' : '無効'})`);
 
+      // 現在のウィンドウIDを取得
+      const currentWindow = await browser.windows.getCurrent();
+      await Logger.info(`送信元ウィンドウID: ${currentWindow.id}`);
+
       // バックグラウンドスクリプトにメッセージ送信
       const response = await browser.runtime.sendMessage({
         action: 'applyPreset',
         preset: preset,
-        detachTab: detachTabOption // タブ分離オプションを追加
+        detachTab: detachTabOption, // タブ分離オプションを追加
+        windowId: currentWindow.id  // 送信元ウィンドウIDを追加
       });
     });
 
@@ -195,14 +200,35 @@ async function openSettings() {
     await Logger.logSystemOperation('設定ページへ移動', async () => {
       await Logger.info('設定ページを開きます');
 
-      browser.runtime.openOptionsPage().then(() => {
-        window.close(); // ポップアップを閉じる
-      }).catch(async err => {
-        await Logger.error('設定ページを開けませんでした:', err);
-        // 代替手段
-        browser.tabs.create({ url: browser.runtime.getURL('views/settings.html') })
-          .then(() => window.close());
-      });
+      // 現在のウィンドウIDを取得
+      const currentWindow = await browser.windows.getCurrent();
+      await Logger.info(`設定ページを開くウィンドウID: ${currentWindow.id}`);
+
+      // 設定ページのURL
+      const settingsUrl = browser.runtime.getURL('views/settings.html');
+      
+      // 現在のウィンドウで設定タブを探す
+      const tabs = await browser.tabs.query({ windowId: currentWindow.id });
+      const existingSettingsTab = tabs.find(tab => tab.url === settingsUrl);
+
+      if (existingSettingsTab) {
+        // 既に設定タブが存在する場合はそのタブにフォーカス
+        await Logger.info(`現在のウィンドウに設定タブが既に存在します (タブID: ${existingSettingsTab.id})`);
+        await browser.tabs.update(existingSettingsTab.id, { active: true });
+        await Logger.info('設定タブにフォーカスしました');
+      } else {
+        // 設定タブが存在しない場合は新しく作成
+        await Logger.info('現在のウィンドウに新しい設定タブを作成します');
+        await browser.tabs.create({ 
+          url: settingsUrl,
+          windowId: currentWindow.id,
+          active: true  // 作成したタブをアクティブに
+        });
+        await Logger.info('新しい設定タブを作成しました');
+      }
+
+      // ポップアップを閉じる
+      window.close();
     });
   } catch (err) {
     await Logger.error('設定ページを開く処理でエラー:', err);

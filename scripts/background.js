@@ -506,17 +506,21 @@ async function _applyPresetInternal(windowId, preset, operationName) {
  * プリセットに基づいてウィンドウサイズを適用する統合関数
  * @param {Object} preset - 適用するプリセット
  * @param {boolean} detachTab - 現在のタブを別ウィンドウに分離するかどうか
+ * @param {number} targetWindowId - 対象ウィンドウID（指定がない場合は現在のウィンドウ）
  * @returns {Promise<Object>} 適用結果
  */
-async function applyPresetWithOptions(preset, detachTab = false) {
+async function applyPresetWithOptions(preset, detachTab = false, targetWindowId = null) {
   try {
     const title = detachTab 
       ? `"${preset.name}" を適用（タブ分離モード）` 
       : `"${preset.name}" を適用`;
     
     return await Logger.logPresetOperation(title, async () => {
-      // 1. 現在のウィンドウとタブの情報を取得
-      const windowId = await getCurrentWindowId();
+      // 1. 対象ウィンドウIDの決定
+      const windowId = targetWindowId || await getCurrentWindowId();
+      await Logger.info(`対象ウィンドウID: ${windowId} (${targetWindowId ? '指定' : '自動取得'})`);
+      
+      // 2. タブ分離モードの場合は対象ウィンドウのアクティブタブを取得
       
       // タブ分離モードの場合は現在のタブを取得
       let activeTab = null;
@@ -697,12 +701,16 @@ async function openSettingsPage() {
   });
 }
 
-// 現在のウィンドウ情報を取得（確実に変換を行うバージョン）
-async function getCurrentWindowInfo() {
+// ウィンドウ情報を取得（ウィンドウID指定対応バージョン）
+async function getCurrentWindowInfo(windowId = null) {
   try {
-    await Logger.logWindowOperation("現在の情報取得", async () => {
-      // 1. 現在のウィンドウを取得
-      const win = await browser.windows.getCurrent({ populate: true });
+    await Logger.logWindowOperation("ウィンドウ情報取得", async () => {
+      // 1. 対象ウィンドウを取得
+      const win = windowId 
+        ? await browser.windows.get(windowId, { populate: true })
+        : await browser.windows.getCurrent({ populate: true });
+      
+      await Logger.info(`1. 対象ウィンドウ情報 (ID: ${win.id}):`, win);
       await Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
 
       // 2. ユーザー設定のDPR値を取得
@@ -909,11 +917,19 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
   if (request.action === 'applyPreset') {
     const detachTab = request.detachTab === true;
-    await applyPresetWithOptions(request.preset, detachTab);
+    const targetWindowId = request.windowId; // 送信元ウィンドウIDを取得
+    await Logger.info(`プリセット適用: 対象ウィンドウID ${targetWindowId}`);
+    await applyPresetWithOptions(request.preset, detachTab, targetWindowId);
   } else if (request.action === 'openSettingsPage') {
     openSettingsPage();
   } else if (request.action === 'getSystemDpr') {
     getSystemDpr(sendResponse);
+    return true;  // 非同期レスポンスを維持
+  } else if (request.action === 'getCurrentWindowInfo') {
+    const targetWindowId = request.windowId;
+    await Logger.info(`現在のウィンドウ情報取得: 対象ウィンドウID ${targetWindowId}`);
+    const windowInfo = await getCurrentWindowInfo(targetWindowId);
+    sendResponse(windowInfo);
     return true;  // 非同期レスポンスを維持
   } else if (request.action === 'presetSaved' || request.action === 'presetDeleted') {
     // プリセットが保存/削除された時に、開いている設定ページへ通知
