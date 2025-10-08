@@ -564,17 +564,50 @@ async function applyPresetWithOptions(preset, detachTab = false) {
       
       // タブ分離モードによって処理を分岐
       if (detachTab) {
-        // タブ分離モード: 新しいウィンドウを作成
+        // タブ分離モード: 2段階でウィンドウを作成
         await Logger.info(`4. タブ "${activeTab.title}" を新しいウィンドウに分離して適用`);
         await Logger.info(`対象タブID: ${activeTab.id}`);
         
-        const finalValues = {
-          tabId: activeTab.id,
-          ...logicalValues
+        // 修正: タブのURLを取得して、そのURLで新しいウィンドウを作成
+        await Logger.info(`対象タブのURL: ${activeTab.url}`);
+        
+        const windowCreateValues = {
+          ...logicalValues,
+          url: activeTab.url  // タブのURLを指定してウィンドウを作成
         };
         
-        await Logger.info("新しいウィンドウに適用する最終値:", finalValues);
-        result = await browser.windows.create(finalValues);
+        await Logger.info("新しいウィンドウに適用する最終値（URL指定）:", windowCreateValues);
+        
+        // 1. タブのURLで新しいウィンドウを作成
+        const newWindow = await browser.windows.create(windowCreateValues);
+        await Logger.info("新しいウィンドウを作成しました:", { 
+          id: newWindow.id, 
+          left: newWindow.left, 
+          top: newWindow.top,
+          width: newWindow.width,
+          height: newWindow.height 
+        });
+        
+        // 2. 元のタブを削除（新しいウィンドウに同じURLのタブができているため）
+        await Logger.info(`元のタブ ${activeTab.id} を削除中...`);
+        await browser.tabs.remove(activeTab.id);
+        
+        // 3. 座標がずれている場合は再調整
+        if (newWindow.left !== windowCreateValues.left || newWindow.top !== windowCreateValues.top) {
+          await Logger.warn("座標がずれました。再調整中...");
+          await Logger.info("期待値:", { left: windowCreateValues.left, top: windowCreateValues.top });
+          await Logger.info("実際値:", { left: newWindow.left, top: newWindow.top });
+          
+          // 再度位置を調整
+          const correctedWindow = await browser.windows.update(newWindow.id, {
+            left: windowCreateValues.left,
+            top: windowCreateValues.top
+          });
+          await Logger.info("再調整後:", { left: correctedWindow.left, top: correctedWindow.top });
+          result = correctedWindow;
+        } else {
+          result = newWindow;
+        }
       } else {
         // 通常モード: 既存ウィンドウを更新
         await Logger.info("4. ウィンドウに適用する最終値:", logicalValues);

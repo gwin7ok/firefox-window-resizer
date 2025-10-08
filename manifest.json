@@ -20,15 +20,15 @@
       "default_popup": "views/popup.html"
    },
    "background": {
-      "scripts": ["scripts/logger.js", "scripts/browser-polyfill.min.js", "scripts/background.js"]
+      "scripts": ["scripts/logger.js", "scripts/browser-polyfill.min.js", "scripts/background.js"],
+      "persistent": false
    },
    "permissions": [
       "storage",
       "tabs",
+      "activeTab",
       "contextMenus",
-      "scripting",
-      "menus",
-      "activeTab"
+      "menus"
    ],
    "options_ui": {
       "page": "views/settings.html",
