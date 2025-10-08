@@ -8,14 +8,19 @@ document.addEventListener('DOMContentLoaded', async function () {
     await Logger.info('プリセットエディタを初期化しています...');
 
     try {
-      // URLパラメータからプリセットIDがあれば取得（編集モード）
+      // URLパラメータからプリセットIDとソースウィンドウIDを取得
       const urlParams = new URLSearchParams(window.location.search);
       const presetId = urlParams.get('id');
+      const sourceWindowId = urlParams.get('sourceWindowId');
 
       // presetIdが有効な文字列かチェック
       const isValidId = presetId && typeof presetId === 'string' && presetId.trim() !== '';
 
+      // ソースウィンドウIDをグローバル変数として保存
+      window.sourceWindowId = sourceWindowId ? parseInt(sourceWindowId) : null;
+
       await Logger.info('起動モード:', isValidId ? '編集モード' : '新規作成モード', 'ID:', presetId || 'なし');
+      await Logger.info('ソースウィンドウID:', window.sourceWindowId || 'なし（メインウィンドウを使用）');
 
       // イベントリスナーを設定
       document.getElementById('preset-form').addEventListener('submit', savePreset);
@@ -122,30 +127,52 @@ async function setDefaultValues() {
 async function useCurrentWindowSize() {
   try {
     await Logger.logWindowOperation('現在のサイズを取得', async () => {
-      // 1. 全てのウィンドウを取得
-      const windows = await browser.windows.getAll();
+      let targetWindow = null;
 
-      // メインウィンドウを取得
-      const mainWindow = windows.find(win =>
-        win.type === 'normal' && !win.incognito && !win.alwaysOnTop && win.state !== 'minimized'
-      );
-
-      if (!mainWindow) {
-        throw new Error('メインブラウザウィンドウが見つかりませんでした');
+      if (window.sourceWindowId) {
+        // ソースウィンドウIDが指定されている場合はそのウィンドウを取得
+        try {
+          targetWindow = await browser.windows.get(window.sourceWindowId);
+          await Logger.info(`ソースウィンドウ（ID: ${window.sourceWindowId}）を使用します`);
+        } catch (err) {
+          await Logger.warn(`ソースウィンドウ（ID: ${window.sourceWindowId}）が見つかりません:`, err.message);
+          await Logger.info('メインウィンドウを検索します');
+        }
       }
 
-      // 1. 元のウィンドウ情報を表示
-      await Logger.info("1. メインブラウザウィンドウ情報:", mainWindow);
+      if (!targetWindow) {
+        // ソースウィンドウが取得できない場合はメインウィンドウを検索
+        const windows = await browser.windows.getAll();
+        targetWindow = windows.find(win =>
+          win.type === 'normal' && !win.incognito && !win.alwaysOnTop && win.state !== 'minimized'
+        );
+
+        if (!targetWindow) {
+          throw new Error('対象となるブラウザウィンドウが見つかりませんでした');
+        }
+        await Logger.info('メインウィンドウを使用します');
+      }
+
+      // 1. 対象ウィンドウ情報を表示
+      await Logger.info("1. 対象ウィンドウ情報:", {
+        id: targetWindow.id,
+        width: targetWindow.width,
+        height: targetWindow.height,
+        left: targetWindow.left,
+        top: targetWindow.top,
+        type: targetWindow.type,
+        state: targetWindow.state
+      });
 
       // 論理ピクセル値（ブラウザから取得した値）
       const logicalValues = {
-        width: mainWindow.width,
-        height: mainWindow.height,
-        left: mainWindow.left,
-        top: mainWindow.top
+        width: targetWindow.width,
+        height: targetWindow.height,
+        left: targetWindow.left,
+        top: targetWindow.top
       };
 
-      await Logger.info('メインウィンドウサイズ (論理ピクセル):', logicalValues);
+      await Logger.info('対象ウィンドウサイズ (論理ピクセル):', logicalValues);
 
       // 2. ユーザー設定のDPR値を取得
       const data = await browser.storage.local.get('systemDpr');
