@@ -14,7 +14,7 @@ Firefox Window Resizerは、ブラウザウィンドウのサイズと位置を�
 
 ## インストール
 
-1. リポジトリからXPIファイルをダウンロード
+1. リポジトリから"firefox-window-resizer@gwin7ok.com.xpi"をダウンロード
 2. Firefoxで `about:addons` を開く
 3. 「拡張機能」ページの歯車アイコンをクリックし、「XPIからアドオンをインストール」を選択
 4. ダウンロードしたXPIファイルを選択してインストール
