@@ -568,23 +568,20 @@ async function applyPresetWithOptions(preset, detachTab = false, targetWindowId 
       
       // タブ分離モードによって処理を分岐
       if (detachTab) {
-        // タブ分離モード: 2段階でウィンドウを作成
+        // タブ分離モード: 空のウィンドウを作成してタブを移動
         await Logger.info(`4. タブ "${activeTab.title}" を新しいウィンドウに分離して適用`);
         await Logger.info(`対象タブID: ${activeTab.id}`);
         
-        // 修正: タブのURLを取得して、そのURLで新しいウィンドウを作成
-        await Logger.info(`対象タブのURL: ${activeTab.url}`);
-        
+        // 1. まず空のウィンドウを作成（about:blankで）
         const windowCreateValues = {
           ...logicalValues,
-          url: activeTab.url  // タブのURLを指定してウィンドウを作成
+          url: "about:blank"  // 空のウィンドウを作成
         };
         
-        await Logger.info("新しいウィンドウに適用する最終値（URL指定）:", windowCreateValues);
+        await Logger.info("新しい空のウィンドウを作成する値:", windowCreateValues);
         
-        // 1. タブのURLで新しいウィンドウを作成
         const newWindow = await browser.windows.create(windowCreateValues);
-        await Logger.info("新しいウィンドウを作成しました:", { 
+        await Logger.info("新しい空のウィンドウを作成しました:", { 
           id: newWindow.id, 
           left: newWindow.left, 
           top: newWindow.top,
@@ -592,11 +589,26 @@ async function applyPresetWithOptions(preset, detachTab = false, targetWindowId 
           height: newWindow.height 
         });
         
-        // 2. 元のタブを削除（新しいウィンドウに同じURLのタブができているため）
-        await Logger.info(`元のタブ ${activeTab.id} を削除中...`);
-        await browser.tabs.remove(activeTab.id);
+        // 2. 現在のタブを新しいウィンドウに移動（状態を保持）
+        await Logger.info(`タブ ${activeTab.id} を新しいウィンドウ ${newWindow.id} に移動中...`);
+        const movedTab = await browser.tabs.move(activeTab.id, {
+          windowId: newWindow.id,
+          index: 0  // 最初の位置に移動
+        });
+        await Logger.info("タブの移動が完了しました:", { 
+          tabId: movedTab[0].id, 
+          windowId: movedTab[0].windowId 
+        });
         
-        // 3. 座標がずれている場合は再調整
+        // 3. 新しいウィンドウの空のタブ（about:blank）を削除
+        const newWindowTabs = await browser.tabs.query({ windowId: newWindow.id });
+        const blankTab = newWindowTabs.find(tab => tab.url === "about:blank" && tab.id !== movedTab[0].id);
+        if (blankTab) {
+          await Logger.info(`空のタブ ${blankTab.id} を削除中...`);
+          await browser.tabs.remove(blankTab.id);
+        }
+        
+        // 4. 座標がずれている場合は再調整
         if (newWindow.left !== windowCreateValues.left || newWindow.top !== windowCreateValues.top) {
           await Logger.warn("座標がずれました。再調整中...");
           await Logger.info("期待値:", { left: windowCreateValues.left, top: windowCreateValues.top });
