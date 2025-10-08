@@ -239,8 +239,19 @@ async function openPresetEditor(presetId = null) {
     await Logger.logPresetOperation('編集', async () => {
       await Logger.info('プリセットエディタを開きます。編集ID:', presetId || '新規作成');
 
+      // 現在のウィンドウIDを取得
+      const currentWindow = await browser.windows.getCurrent();
+      await Logger.info(`元ウィンドウID: ${currentWindow.id}`);
+
       const url = browser.runtime.getURL('views/preset-editor.html');
-      const fullUrl = presetId ? `${url}?id=${presetId}` : url;
+      // ウィンドウIDもパラメータに追加
+      let fullUrl = url;
+      const params = new URLSearchParams();
+      if (presetId) {
+        params.append('id', presetId);
+      }
+      params.append('sourceWindowId', currentWindow.id);
+      fullUrl = `${url}?${params.toString()}`;
 
       try {
         // 変更点: ウィンドウを作成して単純なプロパティだけを抽出
