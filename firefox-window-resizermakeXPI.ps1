@@ -12,7 +12,6 @@ $TempFolderName = "$PackageName-temp"                                     # 一�
 $ExcludeDirs = @(".git", ".vscode", "node_modules")                       # 除外するディレクトリ
 $ExcludeFiles = @("*.zip", "*.xpi", "*.log", "*.ps1", "*.md", ".gitignore")                              # 除外するファイル
 $SevenZipPath = "C:\Program Files\7-Zip\7z.exe"                           # 7-Zipのパス
-$XpiDestinationFolder = "C:\Users\naoki\AppData\Roaming\Waterfox\Profiles\xkvvo1ku.main2forG\extensions" # .xpiファイルをコピーするフォルダ
 
 # 実行環境の詳細情報
 Write-Host "`n=== 実行環境診断 ===" -ForegroundColor Yellow
@@ -33,7 +32,7 @@ if (Test-Path $SourceFolder) {
 }
 
 # デバッグ情報
-Write-Host "`nデバッグ情報: .xpi ファイルをコピーするフォルダは '$XpiDestinationFolder' です。" -ForegroundColor Cyan
+
 
 try {
     # 一時ディレクトリの作成
@@ -119,21 +118,23 @@ try {
     if (Test-Path -Path "$($OutputFileName -replace '\.xpi$', '.zip')") {
         Rename-Item -Path "$($OutputFileName -replace '\.xpi$', '.zip')" -NewName $OutputFileName -Force
 
-        # コピー先に既存のファイルがある場合は削除
-        $destinationFile = Join-Path -Path $XpiDestinationFolder -ChildPath $OutputFileName
-        if (Test-Path -Path $destinationFile) {
-            Write-Host "`nコピー先に既存のファイルが見つかりました。削除します: $destinationFile" -ForegroundColor Yellow
-            Remove-Item -Path $destinationFile -Force
-        }
-
-        # .xpi ファイルを Waterfox プロファイルフォルダにコピー
-        Copy-Item -Path $OutputFileName -Destination $XpiDestinationFolder -Force
-        Write-Host "`n拡張機能パッケージを Waterfox プロファイルフォルダにコピーしました: $XpiDestinationFolder\$OutputFileName" -ForegroundColor Green
-
-        # .xpi ファイルを $SourceFolder にもコピー
+        # .xpi ファイルを $SourceFolder にコピー
         $sourceDestinationFile = Join-Path -Path $SourceFolder -ChildPath $OutputFileName
         Copy-Item -Path $OutputFileName -Destination $SourceFolder -Force
-        Write-Host "`n拡張機能パッケージを $SourceFolder にコピーしました: $sourceDestinationFile" -ForegroundColor Green
+        Write-Host "`n✅ XPIファイルを作成しました: $sourceDestinationFile" -ForegroundColor Green
+        
+        # 拡張機能の更新手順を表示（ドラッグ・アンド・ドロップ推奨）
+        Write-Host "`n" + "="*70 -ForegroundColor Yellow
+        Write-Host "🔄 Firefox拡張機能の更新手順 (再起動不要)" -ForegroundColor Yellow
+        Write-Host "="*70 -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "🟢 推奨方法: ドラッグ・アンド・ドロップ" -ForegroundColor Green
+        Write-Host "1. Firefoxを開く" -ForegroundColor Cyan
+        Write-Host "2. 作成されたXPIファイルをFirefoxウィンドウにドラッグ" -ForegroundColor Cyan
+        Write-Host "   📁 ファイル場所: $sourceDestinationFile" -ForegroundColor White
+        Write-Host "3. [追加] ボタンをクリックして更新完了 ✅" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "="*70 -ForegroundColor Yellow
     } else {
         throw "ZIPファイルの作成に失敗しました。"
     }
@@ -152,6 +153,29 @@ try {
     }
 }
 
-# ウィンドウを閉じないように待機
-Write-Host "`n処理が完了しました。何かキーを押してください..." -ForegroundColor Cyan
+# XPIファイルの場所をエクスプローラーで開くか確認
+Write-Host ""
+$response = Read-Host "XPIファイルをエクスプローラーで開いてドラッグ準備をしますか？ (Y/n)"
+if ($response -ne 'n' -and $response -ne 'N') {
+    try {
+        $xpiFilePath = Join-Path -Path $SourceFolder -ChildPath $OutputFileName
+        if (Test-Path -Path $xpiFilePath) {
+            # エクスプローラーでXPIファイルを選択状態で開く
+            Start-Process "explorer.exe" -ArgumentList "/select,`"$xpiFilePath`""
+            Write-Host "✅ エクスプローラーでXPIファイルを開きました" -ForegroundColor Green
+            Write-Host "💡 XPIファイルをFirefoxにドラッグしてください" -ForegroundColor Cyan
+        } else {
+            Write-Host "❌ XPIファイルが見つかりません: $xpiFilePath" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "❌ エクスプローラーを開けませんでした: $_" -ForegroundColor Red
+    }
+}
+
+# 完了メッセージ
+Write-Host ""
+Write-Host "🎉 XPIファイルの作成が完了しました！" -ForegroundColor Green
+Write-Host "📁 ファイル場所: $SourceFolder\$OutputFileName" -ForegroundColor White
+Write-Host ""
+Write-Host "何かキーを押してください..." -ForegroundColor Gray
 #[System.Console]::ReadKey() | Out-Null
