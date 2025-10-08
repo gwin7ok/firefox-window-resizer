@@ -6,7 +6,7 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
 
 # 定数の設定
 $PackageName = "firefox-window-resizer"                             # パッケージ名
-$SourceFolder = "G:\Cursor_Folder\WRFFofGwin\$PackageName"                           # 元のフォルダ
+$SourceFolder = Split-Path -Parent $MyInvocation.MyCommand.Path     # このスクリプトファイルがあるフォルダ
 $OutputFileName = "$PackageName@gwin7ok.com.xpi"                   # 出力するXPIファイル名
 $TempFolderName = "$PackageName-temp"                                     # 一時フォルダ名
 $ExcludeDirs = @(".git", ".vscode", "node_modules")                       # 除外するディレクトリ
