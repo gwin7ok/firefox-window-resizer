@@ -164,7 +164,7 @@ async function loadPresets() {
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
 
-      ['プリセット名', 'サイズ', '位置', '操作'].forEach(text => {
+      ['順序', 'プリセット名', 'サイズ', '位置', '操作'].forEach(text => {
         const th = document.createElement('th');
         th.textContent = text;
         headerRow.appendChild(th);
@@ -175,9 +175,41 @@ async function loadPresets() {
 
       // テーブルボディ
       const tbody = document.createElement('tbody');
+      tbody.className = 'sortable-tbody';
 
-      presets.forEach(preset => {
+      presets.forEach((preset, index) => {
         const row = document.createElement('tr');
+        row.draggable = true;
+        row.dataset.presetId = preset.id;
+        row.className = 'preset-row';
+
+        // 順序操作セル
+        const orderCell = document.createElement('td');
+        orderCell.className = 'order-controls';
+        
+        const upButton = document.createElement('button');
+        upButton.className = 'order-button up-button';
+        upButton.innerHTML = '↑';
+        upButton.title = '上に移動';
+        upButton.disabled = index === 0;
+        upButton.addEventListener('click', () => movePreset(index, index - 1));
+        
+        const downButton = document.createElement('button');
+        downButton.className = 'order-button down-button';
+        downButton.innerHTML = '↓';
+        downButton.title = '下に移動';
+        downButton.disabled = index === presets.length - 1;
+        downButton.addEventListener('click', () => movePreset(index, index + 1));
+        
+        const dragHandle = document.createElement('span');
+        dragHandle.className = 'drag-handle';
+        dragHandle.innerHTML = '⋮⋮';
+        dragHandle.title = 'ドラッグして移動';
+        
+        orderCell.appendChild(upButton);
+        orderCell.appendChild(downButton);
+        orderCell.appendChild(dragHandle);
+        row.appendChild(orderCell);
 
         // プリセット名
         const nameCell = document.createElement('td');
@@ -214,6 +246,9 @@ async function loadPresets() {
 
         tbody.appendChild(row);
       });
+
+      // ドラッグ&ドロップイベントリスナーを追加
+      setupDragAndDrop(tbody);
 
       table.appendChild(tbody);
       container.appendChild(table);
@@ -460,6 +495,199 @@ async function saveDefaultPresetSetting() {
     await Logger.error('起動時プリセット設定の保存エラー:', error);
     showStatusMessage('起動時プリセット設定の保存に失敗しました', true);
   }
+}
+
+// プリセット順序移動機能
+async function movePreset(fromIndex, toIndex) {
+  try {
+    await Logger.logPresetOperation('順序変更', async () => {
+      await Logger.info(`プリセットを移動: ${fromIndex} → ${toIndex}`);
+      
+      // プリセット一覧を取得
+      const data = await browser.storage.local.get('presets');
+      let presets = data.presets || [];
+      
+      // 順序を変更
+      const [movedPreset] = presets.splice(fromIndex, 1);
+      presets.splice(toIndex, 0, movedPreset);
+      
+      // 保存
+      await browser.storage.local.set({ presets });
+      
+      // 表示を更新
+      await loadPresets();
+      
+      await Logger.info('プリセット順序を変更しました');
+      showStatusMessage('プリセット順序を変更しました');
+    });
+  } catch (error) {
+    await Logger.error('プリセット順序変更エラー:', error);
+    showStatusMessage('プリセット順序の変更に失敗しました', true);
+  }
+}
+
+// ドラッグ&ドロップのセットアップ
+function setupDragAndDrop(tbody) {
+  let draggedElement = null;
+  let draggedIndex = null;
+
+  tbody.addEventListener('dragstart', function(e) {
+    if (e.target.classList.contains('preset-row')) {
+      draggedElement = e.target;
+      draggedIndex = Array.from(tbody.children).indexOf(draggedElement);
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      
+      // カスタムドラッグイメージを設定（オプション）
+      e.dataTransfer.setData('text/html', e.target.outerHTML);
+    }
+  });
+
+  tbody.addEventListener('dragend', function(e) {
+    if (e.target.classList.contains('preset-row')) {
+      e.target.classList.remove('dragging');
+      draggedElement = null;
+      draggedIndex = null;
+      
+      // すべてのインジケーターを削除
+      removeDropIndicators();
+    }
+  });
+
+  tbody.addEventListener('dragover', function(e) {
+    if (draggedElement) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      // 挿入位置を計算
+      const targetRow = e.target.closest('.preset-row');
+      if (targetRow && targetRow !== draggedElement) {
+        // 既存のインジケーターを削除
+        removeDropIndicators();
+        
+        // マウス位置から挿入位置を判定
+        const rect = targetRow.getBoundingClientRect();
+        const mouseY = e.clientY;
+        const rowMiddle = rect.top + rect.height / 2;
+        
+        let insertRow;
+        if (mouseY < rowMiddle) {
+          // 上半分: この行の上に挿入
+          insertRow = targetRow;
+        } else {
+          // 下半分: この行の下に挿入
+          insertRow = targetRow.nextElementSibling;
+        }
+        
+        showDropIndicator(insertRow);
+      }
+    }
+  });
+
+  // インジケーター表示用のヘルパー関数
+  function showDropIndicator(row) {
+    const table = tbody.closest('.presets-table');
+    const tableRect = table.getBoundingClientRect();
+    
+    // インジケーターライン
+    const line = document.createElement('div');
+    line.className = 'drop-indicator-line';
+    line.style.position = 'absolute';
+    line.style.width = table.offsetWidth + 'px';
+    
+    // インジケータードット
+    const dot = document.createElement('div');
+    dot.className = 'drop-indicator-dot';
+    dot.style.position = 'absolute';
+    
+    if (row) {
+      // 指定行の上に表示
+      const rowRect = row.getBoundingClientRect();
+      const topPosition = rowRect.top - tableRect.top;
+      
+      line.style.top = topPosition + 'px';
+      dot.style.top = topPosition + 'px';
+    } else {
+      // 最後に表示（テーブルの最下部）
+      const lastRow = tbody.lastElementChild;
+      if (lastRow) {
+        const lastRowRect = lastRow.getBoundingClientRect();
+        const bottomPosition = lastRowRect.bottom - tableRect.top;
+        
+        line.style.top = bottomPosition + 'px';
+        dot.style.top = bottomPosition + 'px';
+      }
+    }
+    
+    table.appendChild(line);
+    table.appendChild(dot);
+  }
+
+  // インジケーター削除用のヘルパー関数
+  function removeDropIndicators() {
+    const table = tbody.closest('.presets-table');
+    table.querySelectorAll('.drop-indicator-line, .drop-indicator-dot').forEach(el => {
+      el.remove();
+    });
+    tbody.querySelectorAll('tr').forEach(row => {
+      row.style.borderBottom = '';
+    });
+  }
+
+  tbody.addEventListener('dragenter', function(e) {
+    if (draggedElement) {
+      e.preventDefault();
+    }
+  });
+
+  tbody.addEventListener('dragleave', function(e) {
+    // ドラッグが離れたときにインジケーターを削除
+    if (!tbody.contains(e.relatedTarget)) {
+      removeDropIndicators();
+    }
+  });
+
+  tbody.addEventListener('drop', function(e) {
+    if (draggedElement) {
+      e.preventDefault();
+      
+      // ドロップターゲットの行を見つける
+      const dropTargetRow = e.target.closest('.preset-row');
+      
+      if (dropTargetRow && dropTargetRow !== draggedElement) {
+        let dropTargetIndex = Array.from(tbody.children).indexOf(dropTargetRow);
+        
+        // マウス位置から正確な挿入位置を計算
+        const rect = dropTargetRow.getBoundingClientRect();
+        const mouseY = e.clientY;
+        const rowMiddle = rect.top + rect.height / 2;
+        
+        if (mouseY >= rowMiddle) {
+          // 下半分の場合、次の位置に挿入
+          dropTargetIndex += 1;
+        }
+        
+        // ドラッグ元より後ろに移動する場合、インデックス調整
+        if (draggedIndex < dropTargetIndex) {
+          dropTargetIndex -= 1;
+        }
+        
+        console.log('Drop event:', {
+          draggedIndex: draggedIndex,
+          dropTargetIndex: dropTargetIndex,
+          mouseY: mouseY,
+          rowMiddle: rowMiddle
+        });
+        
+        if (draggedIndex !== dropTargetIndex) {
+          movePreset(draggedIndex, dropTargetIndex);
+        }
+      }
+      
+      // インジケーターを削除
+      removeDropIndicators();
+    }
+  });
 }
 
 
