@@ -20,40 +20,70 @@ body {
   text-align: center;
 }
 
-/* プリセットリスト全体 */
+/* プリセットリスト全体 - テーブル形式に変更 */
 .presets-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
-/* プリセット項目 */
+/* テーブルヘッダー */
+.presets-table th {
+  background-color: #f9f9fa;
+  font-weight: normal;
+  font-size: 12px;
+  color: #737373;
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #d7d7db;
+  vertical-align: middle;
+}
+
+/* テーブルセル */
+.presets-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e6;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+/* テーブル行のホバー効果 */
+.presets-table tr:hover {
+  background-color: #f9f9fa;
+}
+
+/* プリセット項目（行全体をクリック可能に） */
 .preset-item {
-  display: grid;
-  grid-template-columns: minmax(100px, 2fr) minmax(80px, 1fr) minmax(80px, 1fr);
-  width: 100%;
-  padding: 8px 0;
   cursor: pointer;
   transition: background-color 0.2s;
-  border: 1px solid transparent;
-  border-radius: 4px;
 }
 
 .preset-item:hover {
   background-color: #f0f0f4;
-  border-color: #d7d7db;
 }
 
 .preset-item:active {
   background-color: #e0e0e6;
 }
 
-/* 各列の共通スタイル */
-.preset-column {
-  padding: 0 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: left; /* 左揃え */
+/* 列幅の指定 */
+.presets-table th:nth-child(1),
+.presets-table td:nth-child(1) {
+  width: 180px; /* プリセット名（ポップアップは狭いので調整） */
+  white-space: pre-wrap; /* 改行を保持して表示 */
+  word-wrap: break-word; /* 長い単語も適切に改行 */
+  line-height: 1.4; /* 行間を適度に設定 */
+}
+
+.presets-table th:nth-child(2),
+.presets-table td:nth-child(2) {
+  width: 90px; /* サイズ列 */
+}
+
+.presets-table th:nth-child(3),
+.presets-table td:nth-child(3) {
+  width: 90px; /* 位置列 */
 }
 
 /* プリセット名 */
@@ -70,24 +100,6 @@ body {
 .preset-position {
   color: #5a5a5e;
   font-size: 13px;
-}
-
-/* テーブルヘッダー */
-.presets-header {
-  display: grid;
-  grid-template-columns: minmax(100px, 2fr) minmax(80px, 1fr) minmax(80px, 1fr);
-  width: 100%;
-  font-size: 12px;
-  color: #737373;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #d7d7db;
-  margin-bottom: 5px;
-}
-
-.preset-header-column {
-  padding: 0 10px;
-  text-align: left; /* 左揃え */
-  font-weight: normal;
 }
 
 /* 設定ボタン */
