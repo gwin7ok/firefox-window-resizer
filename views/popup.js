@@ -140,7 +140,9 @@ async function createPresetItem(preset) {
   // テーブル行を作成（クリック可能）
   const row = document.createElement('tr');
   row.className = 'preset-item';
-  row.title = `クリックして "${preset.name}" を適用`;
+  // 複数行のプリセット名に対応したツールチップ表示
+  const presetNameForTooltip = preset.name.replace(/\n/g, '\n');
+  row.title = `クリックして\n"${presetNameForTooltip}"\nを適用`;
 
   // プリセット名セル
   const nameCell = document.createElement('td');
