@@ -72,38 +72,40 @@ async function loadPresets() {
         return;
       }
 
-      // テーブル形式のヘッダーを追加
-      const headerRow = document.createElement('div');
-      headerRow.className = 'presets-header';
+      // テーブルを作成
+      const presetsTable = document.createElement('table');
+      presetsTable.className = 'presets-table';
 
-      const nameHeader = document.createElement('div');
-      nameHeader.className = 'preset-header-column';
+      // テーブルヘッダーを作成
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+
+      const nameHeader = document.createElement('th');
       nameHeader.textContent = 'プリセット名';
 
-      const sizeHeader = document.createElement('div');
-      sizeHeader.className = 'preset-header-column';
+      const sizeHeader = document.createElement('th');
       sizeHeader.textContent = 'サイズ';
 
-      const positionHeader = document.createElement('div');
-      positionHeader.className = 'preset-header-column';
+      const positionHeader = document.createElement('th');
       positionHeader.textContent = '位置';
 
       headerRow.appendChild(nameHeader);
       headerRow.appendChild(sizeHeader);
       headerRow.appendChild(positionHeader);
+      thead.appendChild(headerRow);
+      presetsTable.appendChild(thead);
 
-      container.appendChild(headerRow);
-
-      // プリセットのリストを作成
-      const presetsTable = document.createElement('div');
-      presetsTable.className = 'presets-table';
+      // テーブルボディを作成
+      const tbody = document.createElement('tbody');
+      presetsTable.appendChild(tbody);
+      
       container.appendChild(presetsTable);
 
-      // プリセットを表示（列ごとに左揃え）
+      // プリセットを表示
       for (const preset of presets) {
         // await を追加して Promise の解決を待機
         const presetItem = await createPresetItem(preset);
-        presetsTable.appendChild(presetItem);
+        tbody.appendChild(presetItem);
       }
 
       await Logger.info('プリセットの読み込みが完了しました');
@@ -127,43 +129,43 @@ async function loadPresets() {
   }
 }
 
-// プリセット項目を作成（列ごとに左揃え）
+// プリセット項目を作成（テーブル行として）
 async function createPresetItem(preset) {
   // プリセットの検証
   if (!preset || !preset.name) {
     await Logger.warn('無効なプリセット:', preset);
-    return document.createElement('div');
+    return document.createElement('tr');
   }
 
-  // 行全体を作成（クリック可能）
-  const item = document.createElement('div');
-  item.className = 'preset-item';
-  item.title = `クリックして "${preset.name}" を適用`;
+  // テーブル行を作成（クリック可能）
+  const row = document.createElement('tr');
+  row.className = 'preset-item';
+  row.title = `クリックして "${preset.name}" を適用`;
 
-  // プリセット名（第1列）
-  const nameElement = document.createElement('div');
-  nameElement.className = 'preset-column preset-name';
-  nameElement.textContent = preset.name;
+  // プリセット名セル
+  const nameCell = document.createElement('td');
+  nameCell.className = 'preset-name';
+  nameCell.textContent = preset.name;
 
-  // サイズ表示（第2列）
-  const sizeElement = document.createElement('div');
-  sizeElement.className = 'preset-column preset-size';
-  sizeElement.textContent = `${preset.width}×${preset.height}`;
+  // サイズセル
+  const sizeCell = document.createElement('td');
+  sizeCell.className = 'preset-size';
+  sizeCell.textContent = `${preset.width}×${preset.height}`;
 
-  // 位置表示（第3列）
-  const positionElement = document.createElement('div');
-  positionElement.className = 'preset-column preset-position';
-  positionElement.textContent = `(${preset.left}, ${preset.top})`;
+  // 位置セル
+  const positionCell = document.createElement('td');
+  positionCell.className = 'preset-position';
+  positionCell.textContent = `(${preset.left}, ${preset.top})`;
 
-  // 要素を行に追加
-  item.appendChild(nameElement);
-  item.appendChild(sizeElement);
-  item.appendChild(positionElement);
+  // セルを行に追加
+  row.appendChild(nameCell);
+  row.appendChild(sizeCell);
+  row.appendChild(positionCell);
 
   // 行全体のクリックイベント
-  item.addEventListener('click', () => applyPreset(preset));
+  row.addEventListener('click', () => applyPreset(preset));
 
-  return item;
+  return row;
 }
 
 // プリセットを適用（タブ分離オプション対応）

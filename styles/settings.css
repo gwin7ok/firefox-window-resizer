@@ -80,6 +80,9 @@ tbody tr:hover {
   padding: 10px;
   border-bottom: 1px solid #d7d7db;
   font-size: 14px;
+  height: auto;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .presets-table tr:hover {
@@ -87,16 +90,29 @@ tbody tr:hover {
 }
 
 .action-buttons {
-  display: flex;
-  gap: 5px;
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: 100%;
+  height: 100%;
+}
+
+.action-buttons > * {
+  display: inline-block;
+  margin: 0 2px;
 }
 
 .edit-button, .delete-button {
-  padding: 5px 10px;
+  padding: 4px 8px;
   font-size: 12px;
   border-radius: 2px;
   cursor: pointer;
   border: 1px solid #d7d7db;
+  height: 30px;
+  line-height: 12px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .edit-button {
@@ -121,27 +137,39 @@ tbody tr:hover {
 
 /* 並べ替え機能のスタイル */
 .order-controls {
-  width: 70px;
+  display: table-cell;
   text-align: center;
   vertical-align: middle;
-  padding: 5px 2px;
+  white-space: nowrap;
+  width: 100%;
+  height: 100%;
+}
+
+.order-controls > * {
+  display: inline-block;
+  margin: 0 1px;
 }
 
 .order-button {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 30px;
   padding: 0;
-  margin: 1px;
-  font-size: 11px;
-  line-height: 1;
+  font-size: 10px;
+  line-height: 20px;
   border: 1px solid #d7d7db;
   background-color: #ffffff;
   color: #0c0c0d;
   cursor: pointer;
   border-radius: 2px;
-  display: inline-block;
+  text-align: center;
+  vertical-align: middle;
 }
-
+.order-button:before {
+	content: "";
+	display: inline-block;
+	height: 30px;
+	vertical-align: middle;
+}
 .order-button:hover:not(:disabled) {
   background-color: #f9f9fa;
   border-color: #0060df;
@@ -154,15 +182,15 @@ tbody tr:hover {
 
 .drag-handle {
   display: inline-block;
-  width: 20px;
+  width: 18px;
   height: 20px;
   line-height: 20px;
   text-align: center;
   cursor: grab;
   color: #737373;
   font-size: 10px;
-  margin-left: 1px;
   user-select: none;
+  vertical-align: middle;
 }
 
 .drag-handle:hover {
@@ -225,26 +253,34 @@ tbody tr:hover {
 .presets-table th:nth-child(1),
 .presets-table td:nth-child(1) {
   width: 70px; /* 順序列 */
+  vertical-align: middle; /* 中央揃え */
 }
 
 .presets-table th:nth-child(2),
 .presets-table td:nth-child(2) {
   width: 300px; /* プリセット名 */
+  white-space: pre-wrap; /* 改行を保持して表示 */
+  word-wrap: break-word; /* 長い単語も適切に改行 */
+  vertical-align: middle; /* セル内容を中央揃え */
+  line-height: 1.4; /* 行間を適度に設定 */
 }
 
 .presets-table th:nth-child(3),
 .presets-table td:nth-child(3) {
   width: 150px; /* サイズ列 */
+  vertical-align: middle; /* 中央揃え */
 }
 
 .presets-table th:nth-child(4),
 .presets-table td:nth-child(4) {
   width: 150px; /* 位置列 */
+  vertical-align: middle; /* 中央揃え */
 }
 
 .presets-table th:nth-child(5),
 .presets-table td:nth-child(5) {
   width: 150px; /* 操作列 */
+  vertical-align: middle; /* 中央揃え */
 }
 
 .sortable-tbody {
