@@ -137,6 +137,83 @@ browser.storage.local.get('debug').then(async data => {
 // デバッグモード切替機能
 
 /**
+ * コンテキストメニューを作成
+ * @returns {Promise<void>}
+ */
+async function createContextMenus() {
+  // 既存のコンテキストメニューをクリア
+  await browser.contextMenus.removeAll();
+  
+  // 拡張機能アイコン用のコンテキストメニュー
+  browser.contextMenus.create({
+    id: "open-settings",
+    title: "設定を開く",
+    contexts: ["browser_action"]
+  });
+  
+  // プリセット用のメニューを作成
+  await createPresetContextMenus();
+}
+
+/**
+ * プリセット用のコンテキストメニューを作成
+ * @returns {Promise<void>}
+ */
+async function createPresetContextMenus() {
+  try {
+    // ストレージからプリセットを取得
+    const data = await browser.storage.local.get('presets');
+    const presets = Array.isArray(data.presets) ? data.presets : [];
+    
+    if (presets.length === 0) {
+      await Logger.info('プリセットがないためコンテキストメニューは作成されません');
+      return;
+    }
+    
+    // メインメニューを作成（URLリンク、Webページ背景、タブ用）
+    const contexts = ["link", "page", "tab"];
+    
+    for (const context of contexts) {
+      // 親メニューを作成
+      const parentId = `fwr-${context}`;
+      browser.contextMenus.create({
+        id: parentId,
+        title: "Firefox Window Resizer",
+        contexts: [context]
+      });
+      
+      // プリセットのサブメニューを作成
+      presets.forEach((preset, index) => {
+        const menuId = `preset-${context}-${index}`;
+        browser.contextMenus.create({
+          id: menuId,
+          parentId: parentId,
+          title: preset.name.replace(/\n/g, ' '), // 改行を空白に変換
+          contexts: [context]
+        });
+      });
+    }
+    
+    await Logger.info(`${presets.length}個のプリセットでコンテキストメニューを作成しました`);
+  } catch (error) {
+    await Logger.error('プリセット用コンテキストメニュー作成エラー:', error);
+  }
+}
+
+/**
+ * コンテキストメニューを更新（プリセット変更時）
+ * @returns {Promise<void>}
+ */
+async function updateContextMenus() {
+  try {
+    await createContextMenus();
+    await Logger.info('コンテキストメニューを更新しました');
+  } catch (error) {
+    await Logger.error('コンテキストメニュー更新エラー:', error);
+  }
+}
+
+/**
  * 拡張機能の初期化処理
  * @returns {Promise<void>}
  */
@@ -161,11 +238,7 @@ async function initialize() {
       
       // コンテキストメニュー設定
       try {
-        browser.contextMenus.create({
-          id: "open-settings",
-          title: "設定を開く",
-          contexts: ["browser_action"]
-        });
+        await createContextMenus();
         await Logger.info("コンテキストメニューを作成しました");
       } catch (error) {
         await Logger.error("コンテキストメニュー作成エラー:", error);
@@ -944,6 +1017,9 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     sendResponse(windowInfo);
     return true;  // 非同期レスポンスを維持
   } else if (request.action === 'presetSaved' || request.action === 'presetDeleted') {
+    // プリセットが保存/削除された時にコンテキストメニューを更新
+    await updateContextMenus();
+    
     // プリセットが保存/削除された時に、開いている設定ページへ通知
     const settingsTabs = await browser.tabs.query({
       url: browser.runtime.getURL('views/settings.html')
@@ -1013,11 +1089,62 @@ browser.runtime.onInstalled.addListener(async (details) => {
 
 
 // コンテキストメニューがクリックされたときの処理
-browser.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "open-settings") {
-    openSettingsPage();
+browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  try {
+    if (info.menuItemId === "open-settings") {
+      openSettingsPage();
+      return;
+    }
+    
+    // プリセットメニューがクリックされた場合
+    if (info.menuItemId.startsWith("preset-")) {
+      await handlePresetContextMenu(info, tab);
+    }
+  } catch (error) {
+    await Logger.error('コンテキストメニュークリックエラー:', error);
   }
 });
+
+/**
+ * プリセット用コンテキストメニューの処理
+ * @param {Object} info - メニュー情報
+ * @param {Object} tab - タブ情報
+ */
+async function handlePresetContextMenu(info, tab) {
+  try {
+    // メニューIDからプリセットインデックスを取得
+    // 形式: "preset-{context}-{index}"
+    const parts = info.menuItemId.split('-');
+    if (parts.length < 3) {
+      await Logger.error('無効なメニューID:', info.menuItemId);
+      return;
+    }
+    
+    const presetIndex = parseInt(parts[2]);
+    if (isNaN(presetIndex)) {
+      await Logger.error('無効なプリセットインデックス:', parts[2]);
+      return;
+    }
+    
+    // プリセットを取得
+    const data = await browser.storage.local.get('presets');
+    const presets = Array.isArray(data.presets) ? data.presets : [];
+    
+    if (presetIndex >= presets.length) {
+      await Logger.error('プリセットインデックスが範囲外:', presetIndex);
+      return;
+    }
+    
+    const preset = presets[presetIndex];
+    await Logger.info(`コンテキストメニューからプリセット適用: ${preset.name}`);
+    
+    // 別ウィンドウ化 + プリセット適用（detachTab=true固定）
+    await applyPresetWithOptions(preset, true, tab.windowId);
+    
+  } catch (error) {
+    await Logger.error('プリセットコンテキストメニュー処理エラー:', error);
+  }
+}
 
 // エラーハンドリング関数
 async function handleError(context, error) {
