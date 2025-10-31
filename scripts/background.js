@@ -171,6 +171,12 @@ async function createPresetContextMenus() {
     }
     
     // メインメニューを作成（URLリンク、Webページ背景、タブ用）
+    const contextTitles = {
+      "link": "Firefox Window Resizer (別ウィンドウで開く)",
+      "page": "Firefox Window Resizer (別ウィンドウに移動)",
+      "tab": "Firefox Window Resizer (別ウィンドウに移動)"
+    };
+    
     const contexts = ["link", "page", "tab"];
     
     for (const context of contexts) {
@@ -178,7 +184,7 @@ async function createPresetContextMenus() {
       const parentId = `fwr-${context}`;
       browser.contextMenus.create({
         id: parentId,
-        title: "Firefox Window Resizer",
+        title: contextTitles[context],
         contexts: [context]
       });
       
@@ -1136,13 +1142,57 @@ async function handlePresetContextMenu(info, tab) {
     }
     
     const preset = presets[presetIndex];
-    await Logger.info(`コンテキストメニューからプリセット適用: ${preset.name}`);
+    const contextType = parts[1]; // "link", "page", "tab"
+    await Logger.info(`コンテキストメニューからプリセット適用: ${preset.name} (コンテキスト: ${contextType})`);
     
-    // 別ウィンドウ化 + プリセット適用（detachTab=true固定）
-    await applyPresetWithOptions(preset, true, tab.windowId);
+    if (contextType === 'link') {
+      // URLリンクの場合：リンクURLを新しいウィンドウで開いてプリセット適用
+      await openLinkInNewWindowWithPreset(info.linkUrl, preset);
+    } else {
+      // ページ背景・タブの場合：現在のタブを別ウィンドウ化してプリセット適用
+      await applyPresetWithOptions(preset, true, tab.windowId);
+    }
     
   } catch (error) {
     await Logger.error('プリセットコンテキストメニュー処理エラー:', error);
+  }
+}
+
+/**
+ * リンクURLを新しいウィンドウで開いてプリセットを適用
+ * @param {string} url - 開くURL
+ * @param {Object} preset - 適用するプリセット
+ */
+async function openLinkInNewWindowWithPreset(url, preset) {
+  try {
+    await Logger.logPresetOperation('リンクを新ウィンドウで開く', async () => {
+      await Logger.info(`リンクURLを新しいウィンドウで開きます: ${url}`);
+      await Logger.info(`適用プリセット: ${preset.name} (${preset.width}×${preset.height})`);
+      
+      // 1. 現在のウィンドウでURLをタブとして開く
+      const currentWindow = await browser.windows.getCurrent();
+      await Logger.info(`現在のウィンドウID: ${currentWindow.id}`);
+      
+      const newTab = await browser.tabs.create({
+        url: url,
+        windowId: currentWindow.id,
+        active: true
+      });
+      await Logger.info(`新しいタブを作成しました: ID ${newTab.id}`);
+      
+      // 2. 少し待機してタブの読み込みを待つ
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 3. applyPresetWithOptions関数を使用してタブを別ウィンドウ化＋プリセット適用
+      await Logger.info(`タブ分離モードでプリセットを適用します`);
+      const result = await applyPresetWithOptions(preset, true, currentWindow.id);
+      
+      await Logger.info(`リンクを新ウィンドウで開く処理が完了しました:`, result);
+      return result;
+    });
+  } catch (error) {
+    await Logger.error('リンクを新ウィンドウで開く処理エラー:', error);
+    throw error;
   }
 }
 
