@@ -45,18 +45,7 @@ const CONFIG = {
   ]
 };
 
-// 既存の定数をCONFIG値に置き換え
-const DEFAULT_WIDTH = CONFIG.DEFAULT_WIDTH;
-const DEFAULT_HEIGHT = CONFIG.DEFAULT_HEIGHT;
-const DEFAULT_PRESET_NAME = CONFIG.DEFAULT_PRESET_NAME;
-const SYSTEM_DPR_STORAGE_KEY = CONFIG.SYSTEM_DPR_STORAGE_KEY;
-const APPLY_DEFAULT_PRESET_ON_STARTUP = CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP;
-
-// 既存の配列・オブジェクト定数を更新
-const DEFAULT_PRESETS = CONFIG.DEFAULT_PRESETS;
-const DEFAULT_SETTINGS = CONFIG.DEFAULT_SETTINGS;
-const DEBUG_LEVEL = CONFIG.DEBUG_LEVEL;
-const CURRENT_DEBUG_LEVEL = CONFIG.DEFAULT_DEBUG_LEVEL;
+// 定数はCONFIGオブジェクトから直接参照するため、重複定義を削除
 
 // デバッグ情報表示を改善
 async function showDebugInfo() {
@@ -257,7 +246,7 @@ async function initialize() {
       const data = await browser.storage.local.get(['presets', 'settings']);
 
       if (!data.presets) {
-        await browser.storage.local.set({ presets: DEFAULT_PRESETS });
+        await browser.storage.local.set({ presets: CONFIG.DEFAULT_PRESETS });
         await Logger.info("デフォルトプリセットを初期化しました");
       } else {
         // プリセット一覧を表示（デバッグ用）
@@ -265,7 +254,7 @@ async function initialize() {
       }
 
       if (!data.settings) {
-        await browser.storage.local.set({ settings: DEFAULT_SETTINGS });
+        await browser.storage.local.set({ settings: CONFIG.DEFAULT_SETTINGS });
         await Logger.info("デフォルト設定を初期化しました");
       } else {
         // 設定ログ出力を追加（デバッグ用）
@@ -287,23 +276,23 @@ async function initialize() {
       }
 
       // DPR設定を初期化
-      await browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(async item => {
-        if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+      await browser.storage.local.get(CONFIG.SYSTEM_DPR_STORAGE_KEY).then(async item => {
+        if (item[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
           await Logger.info('DPR設定を初期化します');
-          await browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+          await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
         }
       });
 
       // デフォルトプリセットを初期化
-      await browser.storage.local.get(DEFAULT_PRESET_NAME).then(async item => {
-        if (!item[DEFAULT_PRESET_NAME]) {
+      await browser.storage.local.get(CONFIG.DEFAULT_PRESET_NAME).then(async item => {
+        if (!item[CONFIG.DEFAULT_PRESET_NAME]) {
           await Logger.info('デフォルトプリセットを初期化します');
           const defaultPreset = {
-            name: DEFAULT_PRESET_NAME,
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT
+            name: CONFIG.DEFAULT_PRESET_NAME,
+            width: CONFIG.DEFAULT_WIDTH,
+            height: CONFIG.DEFAULT_HEIGHT
           };
-          await browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+          await browser.storage.local.set({ [CONFIG.DEFAULT_PRESET_NAME]: defaultPreset });
         }
       });
 
@@ -1059,30 +1048,30 @@ browser.runtime.onInstalled.addListener(async (details) => {
         if (reason === 'install') {
           await Logger.info('初めてのインストールです');
           // 初めてインストールされたときの処理
-          await browser.storage.local.set({ defaultPresetName: DEFAULT_PRESET_NAME });
+          await browser.storage.local.set({ defaultPresetName: CONFIG.DEFAULT_PRESET_NAME });
         } else if (reason === 'update') {
           await Logger.info('アップデートしました');
           // アップデートされたときの処理
         }
 
         // プリセットを初期化
-        await browser.storage.local.get(DEFAULT_PRESET_NAME).then(async item => {
-          if (!item[DEFAULT_PRESET_NAME]) {
+        await browser.storage.local.get(CONFIG.DEFAULT_PRESET_NAME).then(async item => {
+          if (!item[CONFIG.DEFAULT_PRESET_NAME]) {
             await Logger.info('デフォルトプリセットを初期化します');
             const defaultPreset = {
-              name: DEFAULT_PRESET_NAME,
-              width: DEFAULT_WIDTH,
-              height: DEFAULT_HEIGHT
+              name: CONFIG.DEFAULT_PRESET_NAME,
+              width: CONFIG.DEFAULT_WIDTH,
+              height: CONFIG.DEFAULT_HEIGHT
             };
-            await browser.storage.local.set({ [DEFAULT_PRESET_NAME]: defaultPreset });
+            await browser.storage.local.set({ [CONFIG.DEFAULT_PRESET_NAME]: defaultPreset });
           }
         });
 
         // 設定を初期化
-        await browser.storage.local.get(SYSTEM_DPR_STORAGE_KEY).then(async item => {
-          if (item[SYSTEM_DPR_STORAGE_KEY] === undefined) {
+        await browser.storage.local.get(CONFIG.SYSTEM_DPR_STORAGE_KEY).then(async item => {
+          if (item[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
             await Logger.info('DPR設定を初期化します');
-            await browser.storage.local.set({ [SYSTEM_DPR_STORAGE_KEY]: 100 });
+            await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
           }
         });
 
