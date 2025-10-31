@@ -514,6 +514,12 @@ async function movePreset(fromIndex, toIndex) {
       // 保存
       await browser.storage.local.set({ presets });
       
+      // プリセット順序変更をバックグラウンドに通知（コンテキストメニュー更新用）
+      await browser.runtime.sendMessage({
+        action: 'presetSaved',
+        source: 'order_changed'
+      });
+      
       // 表示を更新
       await loadPresets();
       
