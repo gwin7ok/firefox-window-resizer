@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 > nul
-echo Firefox Window Resizer XPI Builder
+echo gwin's-window-resizer XPI Builder
 echo =====================================
 
 REM Change to the directory where this batch file is located
@@ -18,10 +18,10 @@ REM Try PowerShell Core first, then fall back to Windows PowerShell
 where pwsh.exe >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     echo Found PowerShell Core - using pwsh.exe
-    pwsh.exe -ExecutionPolicy Bypass -File "firefox-window-resizermakeXPI.ps1"
+    pwsh.exe -ExecutionPolicy Bypass -File "gwin's-window-resizermakeXPI.ps1"
 ) else (
     echo PowerShell Core not found - using powershell.exe with UTF-8
-    powershell.exe -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '.\firefox-window-resizermakeXPI.ps1'"
+    powershell.exe -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '.\gwin's-window-resizermakeXPI.ps1'"
 )
 
 REM Check execution result

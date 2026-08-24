@@ -5,12 +5,12 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
 }
 
 # 定数の設定
-$PackageName = "firefox-window-resizer"                             # パッケージ名
+$PackageName = "gwin's-window-resizer"                             # パッケージ名
 $SourceFolder = Split-Path -Parent $MyInvocation.MyCommand.Path     # このスクリプトファイルがあるフォルダ
 $OutputFileName = "$PackageName@gwin7ok.com.xpi"                   # 出力するXPIファイル名
 $TempFolderName = "$PackageName-temp"                                     # 一時フォルダ名
 $ExcludeDirs = @(".git", ".vscode", "node_modules")                       # 除外するディレクトリ
-$ExcludeFiles = @("*.zip", "*.xpi", "*.log", "*.ps1", "*.md", ".gitignore")                              # 除外するファイル
+$ExcludeFiles = @("*.zip", "*.xpi", "*.log", "*.ps1", "*.bat", "*.md", ".gitignore")                              # 除外するファイル
 $SevenZipPath = "C:\Program Files\7-Zip\7z.exe"                           # 7-Zipのパス
 
 # 実行環境の詳細情報
@@ -26,7 +26,8 @@ Write-Host "Execution Policy: $(Get-ExecutionPolicy)" -ForegroundColor Cyan
 if (Test-Path $SourceFolder) {
     Write-Host "`nSource Folder Contents:" -ForegroundColor Cyan
     Get-ChildItem -Path $SourceFolder -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Green }
-} else {
+}
+else {
     Write-Host "`n[ERROR] Source folder not found: $SourceFolder" -ForegroundColor Red
     throw "Source folder not found"
 }
@@ -72,11 +73,13 @@ try {
                     $copiedItems = Get-ChildItem -Path $destination -Recurse -File
                     Write-Host "    フォルダ内ファイル数: $($copiedItems.Count)" -ForegroundColor Gray
                 }
-            } else {
+            }
+            else {
                 Write-Host "    ✗ コピー後に確認できない" -ForegroundColor Red
                 throw "Copy verification failed for $($item.Name)"
             }
-        } catch {
+        }
+        catch {
             Write-Host "    ✗ コピーエラー: $($_.Exception.Message)" -ForegroundColor Red
             throw $_
         }
@@ -89,7 +92,8 @@ try {
         $filePath = Join-Path -Path $tempDir -ChildPath $file
         if (Test-Path -Path $filePath) {
             Write-Host "  ✓ $file" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "  ✗ $file (見つかりません)" -ForegroundColor Red
         }
     }
@@ -99,7 +103,8 @@ try {
     if (Test-Path -Path $SevenZipPath) {
         Write-Host "`n7-Zipを使用してZIPファイルを作成します" -ForegroundColor Cyan
         & $SevenZipPath a -tzip "$($OutputFileName -replace '\.xpi$', '.zip')" * -mx=9
-    } else {
+    }
+    else {
         Write-Host "`n7-Zipが見つかりません。Windowsの標準圧縮機能を使用します" -ForegroundColor Yellow
         
         # 文字エンコード問題を回避するため、確実な方法で圧縮
@@ -108,7 +113,8 @@ try {
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             $zipPath = "$($OutputFileName -replace '\.xpi$', '.zip')"
             [System.IO.Compression.ZipFile]::CreateFromDirectory($PWD.Path, $zipPath)
-        } else {
+        }
+        else {
             # PowerShell Core の場合
             Compress-Archive -Path * -DestinationPath "$($OutputFileName -replace '\.xpi$', '.zip')" -Force
         }
@@ -135,13 +141,16 @@ try {
         Write-Host "3. [追加] ボタンをクリックして更新完了 ✅" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "="*70 -ForegroundColor Yellow
-    } else {
+    }
+    else {
         throw "ZIPファイルの作成に失敗しました。"
     }
 
-} catch {
+}
+catch {
     Write-Host "`nエラーが発生しました: $_" -ForegroundColor Red
-} finally {
+}
+finally {
     # 必ず元のディレクトリに戻る
     Set-Location -Path $SourceFolder
     Write-Host "`n作業ディレクトリを元に戻しました: $SourceFolder" -ForegroundColor Cyan
@@ -164,10 +173,12 @@ if ($response -ne 'n' -and $response -ne 'N') {
             Start-Process "explorer.exe" -ArgumentList "/select,`"$xpiFilePath`""
             Write-Host "✅ エクスプローラーでXPIファイルを開きました" -ForegroundColor Green
             Write-Host "💡 XPIファイルをFirefoxにドラッグしてください" -ForegroundColor Cyan
-        } else {
+        }
+        else {
             Write-Host "❌ XPIファイルが見つかりません: $xpiFilePath" -ForegroundColor Red
         }
-    } catch {
+    }
+    catch {
         Write-Host "❌ エクスプローラーを開けませんでした: $_" -ForegroundColor Red
     }
 }
