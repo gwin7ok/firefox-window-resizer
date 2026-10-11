@@ -137,28 +137,14 @@ async function createPresetItem(preset) {
   const row = document.createElement('tr');
   row.className = 'preset-item';
   // 複数行のプリセット名に対応したツールチップ表示
-  const presetNameForTooltip = preset.name.replace(/\n/g, '\n');
-  row.title = `クリックして\n"${presetNameForTooltip}"\nを適用`;
+  row.title = `クリックして\n"${preset.name}"\nを適用`;
 
-  // プリセット名セル
-  const nameCell = document.createElement('td');
-  nameCell.className = 'preset-name';
-  nameCell.textContent = preset.name;
-
-  // サイズセル
-  const sizeCell = document.createElement('td');
-  sizeCell.className = 'preset-size';
-  sizeCell.textContent = `${preset.width}×${preset.height}`;
-
-  // 位置セル
-  const positionCell = document.createElement('td');
-  positionCell.className = 'preset-position';
-  positionCell.textContent = `(${preset.left}, ${preset.top})`;
-
-  // セルを行に追加
-  row.appendChild(nameCell);
-  row.appendChild(sizeCell);
-  row.appendChild(positionCell);
+  // プリセット名・サイズ・位置のセルを追加
+  FwrPresetView.appendInfoCells(row, preset, {
+    name: 'preset-name',
+    size: 'preset-size',
+    position: 'preset-position'
+  });
 
   // 行全体のクリックイベント
   row.addEventListener('click', () => applyPreset(preset));

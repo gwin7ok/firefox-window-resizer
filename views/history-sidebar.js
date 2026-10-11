@@ -286,7 +286,7 @@ function createPresetButton(preset, url) {
 
   const size = document.createElement('span');
   size.className = 'history-preset-size';
-  size.textContent = `  ${preset.width}×${preset.height}`;
+  size.textContent = `  ${FwrStore.formatSize(preset)}`;
   button.appendChild(size);
 
   button.addEventListener('click', function () {

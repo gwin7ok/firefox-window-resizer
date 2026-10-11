@@ -86,6 +86,23 @@
     return convert(values, function (v) { return v * dprFactor; });
   }
 
+  // ---- 表示用の文字列 ----
+
+  // サイズ（例: 1280×720）
+  function formatSize(preset) {
+    return preset.width + '\u00d7' + preset.height;
+  }
+
+  // 位置（例: (0, 0)）
+  function formatPosition(preset) {
+    return '(' + preset.left + ', ' + preset.top + ')';
+  }
+
+  // 改行を空白に置き換えた1行のプリセット名（メニュー項目などの表示用）
+  function singleLineName(name) {
+    return String(name).replace(/\n/g, ' ');
+  }
+
   // ---- 初期化 ----
 
   // 初期データ（プリセット・設定・DPR）を用意する。何度呼んでも安全。
@@ -134,7 +151,10 @@
     getDprFactor: getDprFactor,
     toLogical: toLogical,
     toPhysical: toPhysical,
-    ensureDefaults: ensureDefaults
+    formatSize: formatSize,
+    formatPosition: formatPosition,
+    singleLineName: singleLineName,
+ensureDefaults: ensureDefaults
   };
 
   if (typeof module !== 'undefined' && module.exports) {

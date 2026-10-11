@@ -141,7 +141,7 @@ async function createPresetContextMenus() {
         browser.contextMenus.create({
           id: menuId,
           parentId: parentId,
-          title: preset.name.replace(/\n/g, ' '), // 改行を空白に変換
+          title: FwrStore.singleLineName(preset.name),
           contexts: [context]
         });
       });
@@ -160,7 +160,7 @@ async function createPresetContextMenus() {
         browser.contextMenus.create({
           id: `dup-${context}-${presetMenuKey(preset, index)}`,
           parentId: parentId,
-          title: preset.name.replace(/\n/g, ' '),
+          title: FwrStore.singleLineName(preset.name),
           contexts: [context]
         });
       });

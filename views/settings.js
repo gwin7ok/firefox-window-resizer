@@ -211,20 +211,8 @@ async function loadPresets() {
         orderCell.appendChild(dragHandle);
         row.appendChild(orderCell);
 
-        // プリセット名
-        const nameCell = document.createElement('td');
-        nameCell.textContent = preset.name;
-        row.appendChild(nameCell);
-
-        // サイズ
-        const sizeCell = document.createElement('td');
-        sizeCell.textContent = `${preset.width}×${preset.height}`;
-        row.appendChild(sizeCell);
-
-        // 位置
-        const positionCell = document.createElement('td');
-        positionCell.textContent = `(${preset.left}, ${preset.top})`;
-        row.appendChild(positionCell);
+        // プリセット名・サイズ・位置
+        FwrPresetView.appendInfoCells(row, preset);
 
         // 操作ボタン
         const actionCell = document.createElement('td');
