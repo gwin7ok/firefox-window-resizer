@@ -22,7 +22,6 @@
    "background": {
       "scripts": [
          "scripts/logger.js",
-         "scripts/browser-polyfill.min.js",
          "scripts/background.js"
       ],
       "persistent": false
@@ -30,9 +29,7 @@
    "permissions": [
       "storage",
       "tabs",
-      "activeTab",
       "contextMenus",
-      "menus",
       "bookmarks",
       "history"
    ],
@@ -58,11 +55,5 @@
             ]
          }
       }
-   },
-   "web_accessible_resources": [
-      "views/*",
-      "styles/*",
-      "scripts/*",
-      "images/*"
-   ]
+   }
 }
