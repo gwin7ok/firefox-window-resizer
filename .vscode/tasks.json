@@ -2,13 +2,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            // ローカル確認用の未署名XPIを生成 (makexpi_FWR.bat)
+            // ローカル確認用の未署名XPIを生成 (dist/gwins-window-resizer.xpi)
             "label": "Publish: (Release win-x64)",
             "type": "shell",
-            "command": "cmd",
+            "command": "pwsh",
             "args": [
-                "/c",
-                "makexpi_FWR.bat"
+                "-NoProfile",
+                "-File",
+                "./tools/build-xpi.ps1"
             ],
             "group": {
                 "kind": "build",
