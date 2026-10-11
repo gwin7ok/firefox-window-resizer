@@ -188,6 +188,25 @@ async function createPresetContextMenus() {
         });
       });
     }
+
+    // 複製用メニューを作成（Webページ背景、タブ用）
+    for (const context of ["page", "tab"]) {
+      const parentId = `fwr-dup-${context}`;
+      browser.contextMenus.create({
+        id: parentId,
+        title: "Firefox Window Resizer (複製を別ウィンドウで開く)",
+        contexts: [context]
+      });
+
+      presets.forEach((preset, index) => {
+        browser.contextMenus.create({
+          id: `dup-${context}-${index}`,
+          parentId: parentId,
+          title: preset.name.replace(/\n/g, ' '),
+          contexts: [context]
+        });
+      });
+    }
     
     await Logger.info(`${presets.length}個のプリセットでコンテキストメニューを作成しました`);
   } catch (error) {
@@ -575,9 +594,10 @@ async function _applyPresetInternal(windowId, preset, operationName) {
  * @param {Object} preset - 適用するプリセット
  * @param {boolean} detachTab - 現在のタブを別ウィンドウに分離するかどうか
  * @param {number} targetWindowId - 対象ウィンドウID（指定がない場合は現在のウィンドウ）
+ * @param {number} targetTabId - 分離対象のタブID（指定がない場合は対象ウィンドウのアクティブタブ）
  * @returns {Promise<Object>} 適用結果
  */
-async function applyPresetWithOptions(preset, detachTab = false, targetWindowId = null) {
+async function applyPresetWithOptions(preset, detachTab = false, targetWindowId = null, targetTabId = null) {
   try {
     const title = detachTab 
       ? `"${preset.name}" を適用（タブ分離モード）` 
@@ -593,13 +613,17 @@ async function applyPresetWithOptions(preset, detachTab = false, targetWindowId 
       // タブ分離モードの場合は現在のタブを取得
       let activeTab = null;
       if (detachTab) {
-        const tabs = await browser.tabs.query({ active: true, windowId });
-        
-        if (!tabs || tabs.length === 0) {
-          throw new Error('アクティブなタブが見つかりませんでした');
+        if (targetTabId !== null) {
+          activeTab = await browser.tabs.get(targetTabId);
+        } else {
+          const tabs = await browser.tabs.query({ active: true, windowId });
+
+          if (!tabs || tabs.length === 0) {
+            throw new Error('アクティブなタブが見つかりませんでした');
+          }
+
+          activeTab = tabs[0];
         }
-        
-        activeTab = tabs[0];
         await Logger.info(`選択中のタブ: "${activeTab.title}" (ID: ${activeTab.id})`);
       }
       
@@ -1094,6 +1118,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     // プリセットメニューがクリックされた場合
     if (info.menuItemId.startsWith("preset-")) {
       await handlePresetContextMenu(info, tab);
+    } else if (info.menuItemId.startsWith("dup-")) {
+      await handleDuplicateContextMenu(info, tab);
     }
   } catch (error) {
     await Logger.error('コンテキストメニュークリックエラー:', error);
@@ -1139,11 +1165,44 @@ async function handlePresetContextMenu(info, tab) {
       await openLinkInNewWindowWithPreset(info.linkUrl, preset);
     } else {
       // ページ背景・タブの場合：現在のタブを別ウィンドウ化してプリセット適用
-      await applyPresetWithOptions(preset, true, tab.windowId);
+      await applyPresetWithOptions(preset, true, tab.windowId, tab.id);
     }
     
   } catch (error) {
     await Logger.error('プリセットコンテキストメニュー処理エラー:', error);
+  }
+}
+
+/**
+ * 複製用コンテキストメニューの処理（タブを複製し、複製側を別ウィンドウに移動してプリセット適用）
+ * @param {Object} info - メニュー情報
+ * @param {Object} tab - 右クリックされたタブ情報
+ */
+async function handleDuplicateContextMenu(info, tab) {
+  try {
+    // 形式: "dup-{context}-{index}"
+    const parts = info.menuItemId.split('-');
+    const presetIndex = parseInt(parts[2]);
+    if (parts.length < 3 || isNaN(presetIndex)) {
+      await Logger.error('無効なメニューID:', info.menuItemId);
+      return;
+    }
+
+    const data = await browser.storage.local.get('presets');
+    const presets = Array.isArray(data.presets) ? data.presets : [];
+    const preset = presets[presetIndex];
+    if (!preset) {
+      await Logger.error('プリセットインデックスが範囲外:', presetIndex);
+      return;
+    }
+
+    await Logger.info(`複製して別ウィンドウで開く: ${preset.name} (コンテキスト: ${parts[1]}, タブID: ${tab.id})`);
+
+    // 元のタブはそのまま残し、複製したタブを別ウィンドウに移動する
+    const duplicatedTab = await browser.tabs.duplicate(tab.id);
+    await applyPresetWithOptions(preset, true, tab.windowId, duplicatedTab.id);
+  } catch (error) {
+    await Logger.error('複製コンテキストメニュー処理エラー:', error);
   }
 }
 
