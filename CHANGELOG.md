@@ -9,6 +9,16 @@ The version in `manifest.json` is the single source of truth. Each release has a
 ## [Unreleased]
 
 
+## [1.1.1] - 2026-10-11
+
+- *.xpi をリポジトリの追跡対象外にする（署名済みXPIは GitHub Releases から配布）
+- 起動時プリセットの再適用を修正し、未使用コードを整理
+- コンテキストメニューをプリセットID基準にし、メッセージ応答とウィンドウ解決を整理
+- マニフェストを整理し、不要な権限・ファイルを削除
+- リリースワークフローのアクションを更新（Node.js 20 非推奨警告の解消）
+
+
+
 ## [1.1.0] - 2026-10-11
 
 Context menus
