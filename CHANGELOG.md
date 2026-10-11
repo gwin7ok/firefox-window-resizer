@@ -9,6 +9,16 @@ The version in `manifest.json` is the single source of truth. Each release has a
 ## [Unreleased]
 
 
+## [1.1.4] - 2026-10-11
+
+- Logger を console の薄いラッパーに簡素化（385行 → 85行）
+- 背景スクリプトのテストを、manifest の読み込み順で評価する共通ヘルパーに載せ替え
+- ウィンドウ/タブの操作を scripts/window-actions.js に分離
+- コンテキストメニューを scripts/menus.js に分離
+- 分割した背景スクリプトのテストとドキュメントを追加
+
+
+
 ## [1.1.3] - 2026-10-11
 
 - 確認プロンプトの既定を Yes に変更（Enter のみで続行）
