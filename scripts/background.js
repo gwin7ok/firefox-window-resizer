@@ -139,6 +139,12 @@ async function createContextMenus() {
     title: "設定を開く",
     contexts: ["browser_action"]
   });
+
+  browser.contextMenus.create({
+    id: "open-history-sidebar",
+    title: "履歴を別ウィンドウで開く",
+    contexts: ["browser_action"]
+  });
   
   // プリセット用のメニューを作成
   await createPresetContextMenus();
@@ -1116,6 +1122,12 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   try {
     if (info.menuItemId === "open-settings") {
       openSettingsPage();
+      return;
+    }
+
+    if (info.menuItemId === "open-history-sidebar") {
+      // sidebarAction.open() はユーザー操作の直後（await の前）に呼ぶ必要がある
+      await browser.sidebarAction.open();
       return;
     }
     

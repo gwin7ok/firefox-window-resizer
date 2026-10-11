@@ -37,7 +37,7 @@
       "history"
    ],
    "sidebar_action": {
-      "default_title": "履歴から別ウィンドウで開く",
+      "default_title": "履歴を別ウィンドウで開く",
       "default_panel": "views/history-sidebar.html",
       "default_icon": {
          "16": "assets/icons/browser-icon-16.png",

@@ -204,6 +204,6 @@ async function openWithPreset(url, preset) {
       windowId: currentWindow.id
     });
   } catch (err) {
-    await Logger.error('履歴から別ウィンドウで開くエラー:', err);
+    await Logger.error('履歴を別ウィンドウで開くエラー:', err);
   }
 }
