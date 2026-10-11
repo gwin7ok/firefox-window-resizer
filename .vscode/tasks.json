@@ -2,28 +2,33 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build XPI (local, unsigned)",
+            // Ctrl+Shift+4: ローカル確認用の未署名XPIを生成 (makexpi_FWR.bat)
+            "label": "Publish: (Release win-x64)",
             "type": "shell",
             "command": "cmd",
             "args": [
                 "/c",
                 "makexpi_FWR.bat"
             ],
-            "group": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "presentation": {
+                "reveal": "always",
+                "panel": "shared",
                 "showReuseMessage": false
             }
         },
         {
-            "label": "Bump version (manifest + CHANGELOG)",
+            // Ctrl+Shift+2: 更新履歴の更新（manifest.json の version 更新 + CHANGELOG の [Unreleased] を版に切り出し）
+            "label": "Update Changelog",
             "type": "shell",
             "command": "pwsh",
             "args": [
                 "-NoProfile",
                 "-File",
-                "./tools/bump-version.ps1",
-                "-Version",
-                "${input:newVersion}"
+                "./tools/bump-version.ps1"
             ],
             "presentation": {
                 "reveal": "always",
@@ -32,6 +37,24 @@
             }
         },
         {
+            // Ctrl+Shift+3: リリース生成（Release vX.Y.Z をコミット → push → タグ発行 → Actions が署名・公開）
+            "label": "release-tag-and-push-short",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-File",
+                "./tools/release-tag.ps1",
+                "-CommitRelease"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "showReuseMessage": false
+            }
+        },
+        {
+            // リリース内容の事前確認（何も実行しない）
             "label": "release-tag: dry run",
             "type": "shell",
             "command": "pwsh",
@@ -39,6 +62,7 @@
                 "-NoProfile",
                 "-File",
                 "./tools/release-tag.ps1",
+                "-CommitRelease",
                 "-DryRun"
             ],
             "presentation": {
@@ -46,28 +70,6 @@
                 "panel": "shared",
                 "showReuseMessage": false
             }
-        },
-        {
-            "label": "release-tag: create and push",
-            "type": "shell",
-            "command": "pwsh",
-            "args": [
-                "-NoProfile",
-                "-File",
-                "./tools/release-tag.ps1"
-            ],
-            "presentation": {
-                "reveal": "always",
-                "panel": "shared",
-                "showReuseMessage": false
-            }
-        }
-    ],
-    "inputs": [
-        {
-            "id": "newVersion",
-            "type": "promptString",
-            "description": "New version (x.y.z). [Unreleased] in CHANGELOG.md must not be empty."
         }
     ]
 }
