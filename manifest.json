@@ -2,7 +2,7 @@
    "manifest_version": 2,
    "name": "gwin's-window-resizer",
    "short_name": "FWR",
-   "version": "1.1.4",
+   "version": "1.1.5",
    "description": "簡単にブラウザウィンドウのサイズと位置を変更できます",
    "icons": {
       "16": "assets/icons/icon-16.png",

@@ -9,6 +9,13 @@ The version in `manifest.json` is the single source of truth. Each release has a
 ## [Unreleased]
 
 
+## [1.1.5] - 2026-10-11
+
+- プリセット編集で入力検証エラー時にウィンドウが閉じる不具合を修正
+- 画面スクリプトのテストを追加（ポップアップ・設定画面・プリセット編集）
+
+
+
 ## [1.1.4] - 2026-10-11
 
 - Logger を console の薄いラッパーに簡素化（385行 → 85行）
