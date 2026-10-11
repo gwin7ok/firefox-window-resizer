@@ -2,16 +2,15 @@
 
 const HISTORY_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
-const MAX_LOAD_ALL_PAGES = 5000; // 「すべて読み込む」の安全上限（約50万件）
+const MAX_FETCH_LIMIT = 1000000; // 「すべて読み込む」の安全上限
 
 let searchTimer = null;
 let expandedItem = null;
 let contextMenuElement = null;
 
-// 読み込み済みの履歴（「さらに読み込む」で追加される）
+// 読み込み済みの履歴。取得件数の上限を引き上げて取得し直すたびに置き換える
 let loadedItems = [];
-let seenIds = new Set();
-let oldestVisitTime = null; // 次ページ取得用（これより前の履歴を取得する）
+let fetchLimit = HISTORY_PAGE_SIZE; // history.search の maxResults
 let hasMore = false;
 let loadingAll = false;      // 「すべて読み込む」実行中
 let cancelLoadAll = false;   // 「すべて読み込む」の中止要求
@@ -54,23 +53,25 @@ document.addEventListener('DOMContentLoaded', async function () {
 async function loadHistory() {
   currentQuery = document.getElementById('search-input').value.trim();
   loadedItems = [];
-  seenIds = new Set();
-  oldestVisitTime = null;
+  fetchLimit = HISTORY_PAGE_SIZE;
   hasMore = false;
   toggledGroups = new Map();
 
-  await fetchHistoryPage();
+  await fetchHistory();
 }
 
-// 「さらに読み込む」: 読み込み済みの最も古い履歴より前を取得する
+// 「さらに読み込む」: 取得件数の上限を引き上げて取得し直す
+// （history.search の endTime で区切ると、複数回訪問したページが毎回先頭に返り、
+//   先へ進めなくなるため、新しい順の先頭 N 件を取得し直す方式にしている）
 async function loadMoreHistory() {
   if (loadingAll) {
     return;
   }
-  await fetchHistoryPage();
+  fetchLimit += HISTORY_PAGE_SIZE;
+  await fetchHistory();
 }
 
-// 「すべて読み込む」: 取得できる履歴がなくなるまで繰り返し取得する（途中で中止できる）
+// 「すべて読み込む」: 履歴がなくなるまで上限を倍にして取得し直す（途中で中止できる）
 async function loadAllHistory() {
   const status = document.getElementById('history-status');
   const allButton = document.getElementById('history-all');
@@ -82,13 +83,12 @@ async function loadAllHistory() {
   allButton.textContent = '中止';
 
   try {
-    let pages = 0;
-    while (hasMore && !cancelLoadAll && pages < MAX_LOAD_ALL_PAGES) {
-      const ok = await fetchHistoryPage({ render: false });
+    while (hasMore && !cancelLoadAll && fetchLimit < MAX_FETCH_LIMIT) {
+      fetchLimit = Math.min(fetchLimit * 2, MAX_FETCH_LIMIT);
+      const ok = await fetchHistory({ render: false });
       if (!ok) {
         break;
       }
-      pages++;
       status.textContent = `読み込み中… ${loadedItems.length}件`;
     }
   } finally {
@@ -101,38 +101,21 @@ async function loadAllHistory() {
   }
 }
 
-// 履歴を1ページ分取得して、一覧に反映する。成功したら true を返す
-async function fetchHistoryPage(options) {
+// 履歴を新しい順に fetchLimit 件取得して、一覧に反映する。成功したら true を返す
+async function fetchHistory(options) {
   const render = !options || options.render !== false;
   const status = document.getElementById('history-status');
 
   try {
-    const query = {
+    const items = await browser.history.search({
       text: currentQuery,
       startTime: 0,
-      maxResults: HISTORY_PAGE_SIZE
-    };
-    if (oldestVisitTime !== null) {
-      query.endTime = oldestVisitTime;
-    }
+      maxResults: fetchLimit
+    });
 
-    const items = await browser.history.search(query);
-
-    let added = 0;
-    for (const item of items) {
-      if (!seenIds.has(item.id)) {
-        seenIds.add(item.id);
-        loadedItems.push(item);
-        added++;
-      }
-      if (item.lastVisitTime && (oldestVisitTime === null || item.lastVisitTime < oldestVisitTime)) {
-        oldestVisitTime = item.lastVisitTime;
-      }
-    }
-
-    // Firefox は maxResults 未満の件数しか返さないことがあるため、
-    // 1ページ分に満たなくても、新しい項目が増えた間は続きがあるとみなす
-    hasMore = added > 0;
+    loadedItems = items;
+    // 上限いっぱいまで返ってきた間は、続きがあるとみなす
+    hasMore = items.length >= fetchLimit;
     if (render) {
       status.textContent = loadedItems.length === 0 ? '履歴が見つかりません' : '';
       renderHistory();

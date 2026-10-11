@@ -1,4 +1,4 @@
-// 履歴サイドバー（views/history-sidebar.js）の取得・ページング・開閉状態を、最小限の DOM スタブで検証する。
+// 履歴サイドバー（views/history-sidebar.js）の取得・読み込み・開閉状態を、最小限の DOM スタブで検証する。
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
@@ -19,9 +19,9 @@ class El {
   remove() {}
 }
 
-// options.maxPerCall: Firefox が maxResults 未満しか返さない状況を再現する
+// options.delay: history.search の応答を遅らせる（実行中の操作を再現する）
 function makeEnv(options = {}) {
-  const maxPerCall = options.maxPerCall || Infinity;
+  const delay = options.delay || 0;
   const els = {};
   ['search-input', 'history-list', 'history-status', 'history-more', 'history-all', 'history-more-row']
     .forEach((id) => { els[id] = new El(id); });
@@ -41,17 +41,19 @@ function makeEnv(options = {}) {
   for (let i = 0; i < 100; i++) {
     all.push({ id: String(i), url: `https://e.example/${i}`, title: `T${i}`, lastVisitTime: now - i * 60 * 1000 });
   }
-  for (let i = 0; i < 250; i++) {
+  for (let i = 0; i < 1000; i++) {
     all.push({ id: 'old' + i, url: 'https://o.example/' + i, title: 'O' + i,
       lastVisitTime: now - (3 + Math.floor(i / 25)) * 24 * 3600 * 1000 - i * 1000 });
   }
   const browser = {
     history: { search: async (q) => {
       calls.push(JSON.parse(JSON.stringify(q)));
+      if (delay) await new Promise((r) => setTimeout(r, delay));
+      // Firefox と同様に、最終訪問日時の新しい順に maxResults 件を返す
       return all
-        .filter((x) => (!q.endTime || x.lastVisitTime < q.endTime) && (!q.text || x.title.includes(q.text)))
+        .filter((x) => !q.text || x.title.includes(q.text))
         .sort((a, b) => b.lastVisitTime - a.lastVisitTime)
-        .slice(0, Math.min(q.maxResults, maxPerCall));
+        .slice(0, q.maxResults);
     } },
     storage: { local: { get: async () => ({ presets: [] }) } },
     windows: { getCurrent: async () => ({ id: 1 }) },
@@ -66,6 +68,7 @@ function makeEnv(options = {}) {
   return { els, docListeners, calls, sandbox, now, all };
 }
 
+const TOTAL = 1100;
 const groupsOf = (els) => els['history-list'].children.map((li) => li.children[0]);
 // 見出し（summary）の件数表示から件数を得る（項目は開いたときに初めて描画される）
 const itemCount = (details) => parseInt(details.children[0].children[1].textContent, 10);
@@ -89,37 +92,35 @@ let n = 0; const ok = (m) => { n++; console.log('PASS', m); };
     ok('first page: 100 items by date, today open, load buttons visible');
   }
 
-  // 2. 「さらに読み込む」: endTime で続きを取得。続きがなくなるまでボタンを残す
+  // 2. 「さらに読み込む」: 400件を超えても先へ進める。endTime は使わない
   {
     const env = makeEnv();
     await env.docListeners.DOMContentLoaded();
-    const oldest = Math.min(...env.all.slice(0, 100).map((x) => x.lastVisitTime));
-    await env.els['history-more'].fire('click');
-    assert.strictEqual(env.calls[1].endTime, oldest);
-    assert.strictEqual(totalCount(env.els), 200);
-    await env.els['history-more'].fire('click');
-    assert.strictEqual(totalCount(env.els), 300);
-    await env.els['history-more'].fire('click');
-    assert.strictEqual(totalCount(env.els), 350);
-    assert.strictEqual(env.els['history-more-row'].hidden, false, 'a short page does not end paging');
-    await env.els['history-more'].fire('click');
-    assert.strictEqual(totalCount(env.els), 350);
-    assert.strictEqual(env.els['history-more-row'].hidden, true, 'hidden once a request adds nothing');
-    ok('load more: pages via endTime until a request returns nothing new');
+    for (let i = 1; i <= 5; i++) {
+      await env.els['history-more'].fire('click');
+      assert.strictEqual(totalCount(env.els), 100 + i * 100);
+    }
+    assert.strictEqual(env.els['history-more-row'].hidden, false, 'still more beyond 400 (regression: stopped at ~400)');
+    assert.ok(env.calls.every((c) => c.endTime === undefined), 'endTime paging is not used');
+    assert.strictEqual(env.calls[env.calls.length - 1].maxResults, 600);
+    // 末尾まで読み込む: 取得件数が上限に満たなければ終端
+    while (!env.els['history-more-row'].hidden) {
+      await env.els['history-more'].fire('click');
+    }
+    assert.strictEqual(totalCount(env.els), TOTAL);
+    ok('load more: goes past 400 and stops exactly at the end of history');
   }
 
-  // 3. Firefox が maxResults 未満しか返さなくても、最後まで読み込める（397件で止まる不具合の再現）
+  // 3. 「すべて読み込む」: 上限を倍にして最後まで読み込む
   {
-    const env = makeEnv({ maxPerCall: 60 });
+    const env = makeEnv();
     await env.docListeners.DOMContentLoaded();
-    assert.strictEqual(totalCount(env.els), 60);
-    assert.strictEqual(env.els['history-more-row'].hidden, false);
     await env.els['history-all'].fire('click');
-    assert.strictEqual(totalCount(env.els), 350, 'all history loaded');
+    assert.strictEqual(totalCount(env.els), TOTAL, 'all history loaded');
     assert.strictEqual(env.els['history-more-row'].hidden, true);
     assert.strictEqual(env.els['history-all'].textContent, 'すべて読み込む', 'button label restored');
     assert.strictEqual(env.els['history-more'].disabled, false);
-    ok('load all: reaches the end even when each page is shorter than maxResults');
+    ok('load all: loads the whole history');
   }
 
   // 4. 古い日付のグループは閉じていて、開いたときに初めて項目を描画する（軽量化）
@@ -137,30 +138,36 @@ let n = 0; const ok = (m) => { n++; console.log('PASS', m); };
     ok('lazy rendering: closed groups render their items when first opened');
   }
 
-  // 5. 「すべて読み込む」は途中で中止できる
+  // 5. 「すべて読み込む」は途中で中止でき、続きから再開できる
   {
-    const env = makeEnv({ maxPerCall: 10 });
+    const env = makeEnv({ delay: 20 });
     await env.docListeners.DOMContentLoaded();
     const running = env.els['history-all'].fire('click');
+    assert.strictEqual(env.els['history-all'].textContent, '中止');
     await env.els['history-all'].fire('click'); // 実行中にもう一度押す = 中止
     await running;
-    assert.ok(totalCount(env.els) < 350, 'stopped before loading everything');
+    assert.ok(totalCount(env.els) < TOTAL, 'stopped before loading everything');
     assert.strictEqual(env.els['history-all'].textContent, 'すべて読み込む');
     assert.strictEqual(env.els['history-more-row'].hidden, false, 'can continue after cancel');
+    await env.els['history-all'].fire('click');
+    assert.strictEqual(totalCount(env.els), TOTAL);
     ok('load all: can be cancelled and resumed');
   }
 
-  // 6. 検索中は全グループを開く
+  // 6. 検索中は全グループを開く。検索を変えると取得件数の上限は初期値に戻る
   {
     const env = makeEnv();
     await env.docListeners.DOMContentLoaded();
+    await env.els['history-more'].fire('click'); // 上限 200
     env.els['search-input'].value = 'O';
     await env.els['search-input'].fire('input');
     await new Promise((r) => setTimeout(r, 400));
     const groups = groupsOf(env.els);
     assert.ok(groups.length >= 1 && groups.every((g) => g.open === true));
-    assert.strictEqual(env.calls[env.calls.length - 1].text, 'O');
-    ok('search: all groups open');
+    const last = env.calls[env.calls.length - 1];
+    assert.strictEqual(last.text, 'O');
+    assert.strictEqual(last.maxResults, 100);
+    ok('search: all groups open, limit resets to the first page');
   }
 
   console.log(`\n${n} tests passed`);
