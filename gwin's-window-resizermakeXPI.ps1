@@ -9,7 +9,7 @@ $PackageName = "gwin's-window-resizer"                             # パッケ�
 $SourceFolder = Split-Path -Parent $MyInvocation.MyCommand.Path     # このスクリプトファイルがあるフォルダ
 $OutputFileName = "$PackageName@gwin7ok.com.xpi"                   # 出力するXPIファイル名
 $TempFolderName = "$PackageName-temp"                                     # 一時フォルダ名
-$ExcludeDirs = @(".git", ".vscode", "node_modules")                       # 除外するディレクトリ
+$ExcludeDirs = @(".git", ".github", ".vscode", "node_modules", "tools", "dist")                       # 除外するディレクトリ
 $ExcludeFiles = @("*.zip", "*.xpi", "*.log", "*.ps1", "*.bat", "*.md", ".gitignore")                              # 除外するファイル
 $SevenZipPath = "C:\Program Files\7-Zip\7z.exe"                           # 7-Zipのパス
 

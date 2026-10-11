@@ -1,0 +1,87 @@
+name: Release (tag-triggered)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  sign-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version from tag and verify manifest.json
+        id: get_version
+        shell: pwsh
+        run: |
+          $refName = '${{ github.ref_name }}'
+          if ($refName -notmatch '^v(\d+\.\d+\.\d+)$') {
+            Write-Error "Ref name is not a vX.Y.Z tag: $refName"
+            exit 1
+          }
+          $v = $Matches[1]
+          $manifestVersion = (Get-Content -Raw manifest.json | ConvertFrom-Json).version
+          if ($manifestVersion -ne $v) {
+            Write-Error "Tag version ($v) does not match manifest.json version ($manifestVersion)"
+            exit 1
+          }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding ascii -Append
+
+      - name: Extract changelog section
+        shell: pwsh
+        run: |
+          $v = '${{ steps.get_version.outputs.version }}'
+          $raw = Get-Content -Raw CHANGELOG.md
+          $pattern = "(?ms)^## \[$([regex]::Escape($v))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)"
+          $m = [regex]::Match($raw, $pattern)
+          if (-not $m.Success -or [string]::IsNullOrWhiteSpace($m.Groups[1].Value)) {
+            Write-Error "No changelog section found for version $v"
+            exit 1
+          }
+          Set-Content -Path changes.txt -Value $m.Groups[1].Value.Trim() -Encoding UTF8
+
+      - name: Build and sign XPI (AMO unlisted)
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: pwsh
+        run: |
+          if (-not $env:AMO_JWT_ISSUER -or -not $env:AMO_JWT_SECRET) {
+            Write-Error 'Secrets AMO_JWT_ISSUER / AMO_JWT_SECRET are not set'
+            exit 1
+          }
+          npx --yes web-ext@8 sign `
+            --source-dir . `
+            --artifacts-dir dist `
+            --channel unlisted `
+            --api-key $env:AMO_JWT_ISSUER `
+            --api-secret $env:AMO_JWT_SECRET `
+            --ignore-files ".github" "tools" ".vscode" "CHANGELOG.md" "README.md" "*.ps1" "*.bat" "*.xpi" "*.zip" ".gitignore" "dist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $signed = Get-ChildItem dist -Filter *.xpi
+          if ($signed.Count -ne 1) {
+            Write-Error "Expected exactly one signed XPI in dist, found $($signed.Count)"
+            exit 1
+          }
+          # 固定名にして releases/latest/download/ の恒久リンクを使えるようにする
+          Move-Item $signed[0].FullName 'dist/gwins-window-resizer.xpi'
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }}
+          body_path: changes.txt
+          files: dist/gwins-window-resizer.xpi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

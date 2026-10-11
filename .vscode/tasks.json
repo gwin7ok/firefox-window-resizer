@@ -1,0 +1,73 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build XPI (local, unsigned)",
+            "type": "shell",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "makexpi_FWR.bat"
+            ],
+            "group": "build",
+            "presentation": {
+                "showReuseMessage": false
+            }
+        },
+        {
+            "label": "Bump version (manifest + CHANGELOG)",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-File",
+                "./tools/bump-version.ps1",
+                "-Version",
+                "${input:newVersion}"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "showReuseMessage": false
+            }
+        },
+        {
+            "label": "release-tag: dry run",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-File",
+                "./tools/release-tag.ps1",
+                "-DryRun"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "showReuseMessage": false
+            }
+        },
+        {
+            "label": "release-tag: create and push",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-File",
+                "./tools/release-tag.ps1"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "showReuseMessage": false
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "newVersion",
+            "type": "promptString",
+            "description": "New version (x.y.z). [Unreleased] in CHANGELOG.md must not be empty."
+        }
+    ]
+}

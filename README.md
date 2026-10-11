@@ -24,7 +24,7 @@ Firefox Window Resizerは、ブラウザウィンドウのサイズと位置を�
 
 ## インストール
 
-リポジトリから["gwin's-window-resizer@gwin7ok.com.xpi"](https://github.com/gwin7ok/firefox-window-resizer/raw/refs/heads/main/gwin's-window-resizer@gwin7ok.com.xpi)をダウンロードして、以下の3つの方法のいずれかでインストールできます：
+[最新リリースのXPI](https://github.com/gwin7ok/firefox-window-resizer/releases/latest/download/gwins-window-resizer.xpi)をダウンロードして、以下の3つの方法のいずれかでインストールできます（過去のバージョンは[Releases](https://github.com/gwin7ok/firefox-window-resizer/releases)から入手できます）：
 
 ### 方法1: Firefoxで直接開く
 1. 上記のリンクをFirefoxで開く
@@ -98,7 +98,10 @@ Firefox Window Resizerは、ブラウザウィンドウのサイズと位置を�
 ### ファイル構成
 ```
 firefox-window-resizer/
-├── manifest.json          # 拡張機能マニフェスト
+├── manifest.json          # 拡張機能マニフェスト（version が正）
+├── CHANGELOG.md           # 更新履歴（リリースノートの原本）
+├── .github/workflows/     # リリース用 GitHub Actions
+├── tools/                 # バージョン更新・タグ発行スクリプト
 ├── scripts/
 │   ├── background.js      # バックグラウンド処理
 │   ├── logger.js          # ログ機能
@@ -113,13 +116,31 @@ firefox-window-resizer/
 
 ### ビルド方法
 
-1. PowerShellでビルドスクリプトを実行
+ローカル確認用（未署名）:
+
+1. `makexpi_FWR.bat` を実行してXPIを生成（`about:debugging` の一時的なアドオン読み込みでも確認できます）
+
+### リリース手順
+
+署名済みXPIは、`vX.Y.Z` タグの push をきっかけにGitHub Actionsが作成し、Releaseに添付します。
+
+1. `CHANGELOG.md` の `## [Unreleased]` に変更内容を書く
+2. バージョンを更新する（`manifest.json` の更新と、CHANGELOG の `[Unreleased]` → `[x.y.z] - 日付` を行う）
 
 ```powershell
-.\makeXPI.ps1
+pwsh ./tools/bump-version.ps1 -Version 1.2.0
 ```
 
-2. 生成されたXPIファイルをFirefoxでインストール
+3. 変更をコミットして push する
+4. タグを発行して push する（`-DryRun` で事前確認できます。既存タグの再作成はしません）
+
+```powershell
+pwsh ./tools/release-tag.ps1
+```
+
+5. Actions が署名（AMO unlisted）して `gwins-window-resizer.xpi` を Release に添付します
+
+VS Code のタスク（`.vscode/tasks.json`）からも実行できます。事前に GitHub の Secrets に `AMO_JWT_ISSUER` と `AMO_JWT_SECRET` を登録しておく必要があります。AMOは同一バージョンを再署名できないため、やり直す場合はバージョンを上げてください。
 
 ## ライセンス・著作権
 
@@ -127,10 +148,4 @@ Firefox Window Resizer © 2023-2025 gwin7ok
 
 ## 更新履歴
 
-### v1.0.0 (2025年10月)
-- コンテキストメニュー機能追加
-- プリセット名マルチライン対応
-- ドラッグ&ドロップによる順序変更
-- テーブル表示の最適化
-- タブ処理の改善
-- DPR対応の強化
+[CHANGELOG.md](CHANGELOG.md) を参照してください。
