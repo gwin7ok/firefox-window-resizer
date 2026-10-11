@@ -154,7 +154,7 @@ async function updateContextMenus() {
 async function handleMenuClick(info, tab) {
   try {
     if (info.menuItemId === "open-settings") {
-      openSettingsPage();
+      await openSettingsPage();
       return;
     }
 

@@ -14,7 +14,9 @@ firefox-window-resizer/
 ├── tests/                 # 単体テスト（browser API をモックした Node テスト）
 ├── tools/                 # バージョン更新・タグ発行・ローカルビルドのスクリプト
 ├── scripts/
-│   ├── background.js      # バックグラウンド処理
+│   ├── window-actions.js  # ウィンドウ/タブの操作（プリセット適用、タブ分離、リンクを開く）
+│   ├── menus.js           # コンテキストメニュー（作成・更新・クリック処理）
+│   ├── background.js      # 初期化・起動処理・イベント登録・メッセージ処理
 │   ├── store.js           # 保存データ(プリセット・設定・拡大率)の読み書きと論理/物理ピクセル変換
 │   └── logger.js          # ログ機能
 ├── views/
@@ -40,6 +42,21 @@ firefox-window-resizer/
 
    `dist/gwins-window-resizer.xpi` が作成されます（`dist/` は Git の追跡対象外です）。エクスプローラーからは `tools/build-xpi.bat` をダブルクリックしても実行できます。VS Code のタスクから実行する場合は、`Tasks: Run Task` で `Publish: (Release win-x64)` を選びます。
 2. 署名のない XPI は通常の Firefox にはインストールできません。動作確認には `about:debugging` →「このFirefox」→「一時的なアドオンを読み込む」で `manifest.json` を選びます。
+
+## 背景スクリプトの構成
+
+背景スクリプトは `manifest.json` の `background.scripts` に並べた順に読み込まれます（ES Modules ではなく、グローバルな関数として共有します）。下位（依存される側）から順に並べます。
+
+| 順 | ファイル | 役割 | 依存 |
+|---|---|---|---|
+| 1 | `scripts/logger.js` | ログ出力 | - |
+| 2 | `scripts/store.js` | 保存データ・論理/物理ピクセル変換 | - |
+| 3 | `scripts/window-actions.js` | ウィンドウ/タブの操作 | logger, store |
+| 4 | `scripts/menus.js` | コンテキストメニュー | logger, store, window-actions |
+| 5 | `scripts/background.js` | 初期化・起動処理・イベントリスナーの登録・メッセージ処理 | すべて |
+
+- イベントリスナー（`onStartup` / `onInstalled` / `onMessage` / `onClicked`）の登録は、イベントページの起動時に同期的に行う必要があるため、`background.js` にまとめています。
+- 読み込み順を変えたときは `node tests/run.js` で検知されます（`tests/manifest.test.js`）。
 
 ## ログ出力
 

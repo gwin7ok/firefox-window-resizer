@@ -48,4 +48,17 @@ for (const p of manifest.permissions) {
   assert.ok(allowed.has(p), `unexpected permission: ${p} (update tests/manifest.test.js if intentional)`);
 }
 
+// 背景スクリプトの読み込み順: 依存される側（下位）を先に読み込む
+// logger / store -> window-actions -> menus -> background
+const expectedOrder = [
+  'scripts/logger.js',
+  'scripts/store.js',
+  'scripts/window-actions.js',
+  'scripts/menus.js',
+  'scripts/background.js',
+];
+const actualOrder = manifest.background.scripts;
+assert.deepStrictEqual(actualOrder, expectedOrder,
+  `background.scripts order must be ${expectedOrder.join(' -> ')} (got ${actualOrder.join(' -> ')})`);
+
 console.log(`PASS manifest/HTML references (${count} files checked), permissions: ${manifest.permissions.join(', ')}`);
