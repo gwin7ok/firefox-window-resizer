@@ -33,8 +33,17 @@
       "activeTab",
       "contextMenus",
       "menus",
-      "bookmarks"
+      "bookmarks",
+      "history"
    ],
+   "sidebar_action": {
+      "default_title": "履歴から別ウィンドウで開く",
+      "default_panel": "views/history-sidebar.html",
+      "default_icon": {
+         "16": "assets/icons/browser-icon-16.png",
+         "32": "assets/icons/browser-icon-32.png"
+      }
+   },
    "options_ui": {
       "page": "views/settings.html",
       "open_in_tab": true

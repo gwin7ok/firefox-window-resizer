@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>履歴から開く</title>
+    <link rel="stylesheet" href="../styles/history-sidebar.css">
+    <script src="../scripts/logger.js"></script>
+    <script src="../scripts/browser-polyfill.min.js"></script>
+    <script src="../views/history-sidebar.js"></script>
+</head>
+<body>
+    <div class="history-container">
+        <input type="search" id="search-input" placeholder="履歴を検索" autocomplete="off">
+        <div id="history-status" class="history-status"></div>
+        <ul id="history-list" class="history-list">
+            <!-- 履歴はJavaScriptで動的に追加 -->
+        </ul>
+    </div>
+</body>
+</html>

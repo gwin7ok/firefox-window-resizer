@@ -1025,6 +1025,9 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     const targetWindowId = request.windowId; // 送信元ウィンドウIDを取得
     await Logger.info(`プリセット適用: 対象ウィンドウID ${targetWindowId}`);
     await applyPresetWithOptions(request.preset, detachTab, targetWindowId);
+  } else if (request.action === 'openUrlWithPreset') {
+    // 履歴サイドバーなどから「URLを別ウィンドウで開く」依頼
+    await openLinkInNewWindowWithPreset(request.url, request.preset, request.windowId);
   } else if (request.action === 'openSettingsPage') {
     openSettingsPage();
   } else if (request.action === 'getSystemDpr') {
@@ -1223,15 +1226,18 @@ async function handleDuplicateContextMenu(info, tab) {
  * リンクURLを新しいウィンドウで開いてプリセットを適用
  * @param {string} url - 開くURL
  * @param {Object} preset - 適用するプリセット
+ * @param {number} [windowId] - URLを開く元のウィンドウID（未指定なら現在のウィンドウ）
  */
-async function openLinkInNewWindowWithPreset(url, preset) {
+async function openLinkInNewWindowWithPreset(url, preset, windowId = null) {
   try {
     await Logger.logPresetOperation('リンクを新ウィンドウで開く', async () => {
       await Logger.info(`リンクURLを新しいウィンドウで開きます: ${url}`);
       await Logger.info(`適用プリセット: ${preset.name} (${preset.width}×${preset.height})`);
       
       // 1. 現在のウィンドウでURLをタブとして開く
-      const currentWindow = await browser.windows.getCurrent();
+      const currentWindow = windowId !== null && windowId !== undefined
+        ? { id: windowId }
+        : await browser.windows.getCurrent();
       await Logger.info(`現在のウィンドウID: ${currentWindow.id}`);
       
       const newTab = await browser.tabs.create({
