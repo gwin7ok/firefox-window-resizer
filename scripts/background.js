@@ -1,33 +1,8 @@
 // 設定値を集約するCONFIGオブジェクト
 const CONFIG = {
-  // ウィンドウのデフォルト設定
-  DEFAULT_WIDTH: 1280,
-  DEFAULT_HEIGHT: 720,
-  DEFAULT_LEFT: 0,
-  DEFAULT_TOP: 0,
-  
-  // プリセット関連
-  DEFAULT_PRESET_NAME: "default",
-  APPLY_DEFAULT_PRESET_ON_STARTUP: true, // trueに変更：設定によって内部制御する方式に
-  
-  // キャッシュ設定
-  CACHE_LIFETIME_MS: 60000, // キャッシュの有効期間: 1分
-  
   // ストレージキー
   SYSTEM_DPR_STORAGE_KEY: 'systemDpr',
-  
-  // デバッグレベル設定
-  DEBUG_LEVEL: {
-    NONE: 0,    // 重要なメッセージのみ
-    ERROR: 1,   // エラーも表示
-    WARN: 2,    // 警告も表示
-    INFO: 3,    // 情報も表示
-    DEBUG: 4    // すべて表示
-  },
-  
-  // デフォルトのデバッグレベル
-  DEFAULT_DEBUG_LEVEL: 3, // INFO
-  
+
   // 設定のデフォルト値
   DEFAULT_SETTINGS: {
     defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
@@ -36,6 +11,7 @@ const CONFIG = {
   // デフォルトプリセット
   DEFAULT_PRESETS: [
     {
+      id: "preset-default",
       name: "新規プリセット",
       width: 1024,
       height: 768,
@@ -44,18 +20,6 @@ const CONFIG = {
     }
   ]
 };
-
-// 定数はCONFIGオブジェクトから直接参照するため、重複定義を削除
-
-// デバッグ情報表示を改善
-async function showDebugInfo() {
-
-  // まず DPR 情報を非同期で取得・表示し、完了を待機
-  await showDprInfo();
-
-  // DPR処理完了後に、プリセット情報を取得・表示
-  await showPresetInfo();
-}
 
 // DPR情報表示関数 - getSystemDprを活用
 async function showDprInfo() {
@@ -101,29 +65,6 @@ async function showPresetInfo() {
   }
 }
 
-// デバッグログを有効化
-browser.storage.local.get('debug').then(async data => {
-  const isDebugMode = data.debug === true;
-
-  // デバッグモードが有効なら標準のconsoleメソッドを使用
-  if (isDebugMode) {
-    await Logger.info('デバッグモード有効: ログ出力を行います');
-    return;
-  }
-
-  // デバッグモード無効の場合は何もしない関数に置き換え
-  const noop = function () { };
-
-  // 重要なエラーメッセージはそのまま出力
-  const originalError = console.error;
-  const originalWarn = console.warn;
-
-
-}).catch(async err => {
-  await Logger.error('デバッグ設定の読み込み中にエラーが発生しました:', err);
-});
-
-// デバッグモード切替機能
 
 /**
  * コンテキストメニューを作成
@@ -235,14 +176,47 @@ async function updateContextMenus() {
 }
 
 /**
- * 拡張機能の初期化処理
+ * 初期データ（プリセット・設定・DPR）をストレージに用意する。何度呼んでも安全。
+ * 既存プリセットに id がない場合は付与する（起動時適用がIDで検索するため）。
+ * @returns {Promise<void>}
+ */
+async function ensureDefaults() {
+  const data = await browser.storage.local.get(['presets', 'settings', CONFIG.SYSTEM_DPR_STORAGE_KEY]);
+
+  if (!Array.isArray(data.presets)) {
+    await browser.storage.local.set({ presets: CONFIG.DEFAULT_PRESETS.map(preset => ({ ...preset })) });
+    await Logger.info("デフォルトプリセットを初期化しました");
+  } else if (data.presets.some(preset => preset && !preset.id)) {
+    const presets = data.presets.map((preset, index) =>
+      (preset && !preset.id) ? { ...preset, id: `preset-${Date.now()}-${index}` } : preset
+    );
+    await browser.storage.local.set({ presets });
+    await Logger.info("idのないプリセットにidを付与しました");
+  }
+
+  if (!data.settings) {
+    await browser.storage.local.set({ settings: CONFIG.DEFAULT_SETTINGS });
+    await Logger.info("デフォルト設定を初期化しました");
+  }
+
+  if (data[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
+    await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
+    await Logger.info('DPR設定を初期化しました');
+  }
+}
+
+/**
+ * 拡張機能の初期化処理（インストール/更新時とブラウザ起動時に1回だけ呼ぶ）。
+ * 背景スクリプトは persistent: false のため、再読み込みのたびに実行してはならない。
  * @returns {Promise<void>}
  */
 async function initialize() {
   try {
     return await Logger.logSystemOperation('拡張機能初期化', async () => {
       await Logger.info('拡張機能を初期化します');
-      
+
+      await ensureDefaults();
+
       // アイコン設定
       try {
         await browser.browserAction.setIcon({
@@ -252,95 +226,21 @@ async function initialize() {
             48: "../assets/icons/icon-48.png",
           }
         });
-        await Logger.info("アイコンを設定しました");
       } catch (error) {
         await Logger.error("アイコン設定エラー:", error);
       }
-      
+
       // コンテキストメニュー設定
       try {
         await createContextMenus();
-        await Logger.info("コンテキストメニューを作成しました");
       } catch (error) {
         await Logger.error("コンテキストメニュー作成エラー:", error);
       }
-      
-      // DPR設定の確認
+
+      // 現状の確認（ログ）
       await showDprInfo();
-      
-      // ストレージをチェックし、初期データがなければ設定
-      const data = await browser.storage.local.get(['presets', 'settings']);
+      await showPresetInfo();
 
-      if (!data.presets) {
-        await browser.storage.local.set({ presets: CONFIG.DEFAULT_PRESETS });
-        await Logger.info("デフォルトプリセットを初期化しました");
-      } else {
-        // プリセット一覧を表示（デバッグ用）
-        await showPresetInfo();
-      }
-
-      if (!data.settings) {
-        await browser.storage.local.set({ settings: CONFIG.DEFAULT_SETTINGS });
-        await Logger.info("デフォルト設定を初期化しました");
-      } else {
-        // 設定ログ出力を追加（デバッグ用）
-        await Logger.info("現在の設定:", data.settings);
-        if (data.settings.defaultPresetId) {
-          await Logger.info(`起動時適用プリセットID: ${data.settings.defaultPresetId}`);
-        } else {
-          await Logger.info("起動時適用プリセットは設定されていません");
-        }
-      }
-
-      // CONFIG状態の確認と補正
-      if (data.settings && data.settings.defaultPresetId) {
-        CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = true;
-        await Logger.info("CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP を true に設定しました");
-      } else {
-        CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP = false;
-        await Logger.info("CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP を false に設定しました");
-      }
-
-      // DPR設定を初期化
-      await browser.storage.local.get(CONFIG.SYSTEM_DPR_STORAGE_KEY).then(async item => {
-        if (item[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
-          await Logger.info('DPR設定を初期化します');
-          await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
-        }
-      });
-
-      // デフォルトプリセットを初期化
-      await browser.storage.local.get(CONFIG.DEFAULT_PRESET_NAME).then(async item => {
-        if (!item[CONFIG.DEFAULT_PRESET_NAME]) {
-          await Logger.info('デフォルトプリセットを初期化します');
-          const defaultPreset = {
-            name: CONFIG.DEFAULT_PRESET_NAME,
-            width: CONFIG.DEFAULT_WIDTH,
-            height: CONFIG.DEFAULT_HEIGHT
-          };
-          await browser.storage.local.set({ [CONFIG.DEFAULT_PRESET_NAME]: defaultPreset });
-        }
-      });
-
-      // 起動時のプリセット適用が有効な場合は実行
-      await Logger.info("起動時のデフォルトプリセット適用実行フラグ:", CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP);
-      if (CONFIG.APPLY_DEFAULT_PRESET_ON_STARTUP) {
-        await Logger.info("起動時のデフォルトプリセット適用を開始します");
-        
-        // 遅延実行して安定化を図る（遅延を少し長めに）
-        setTimeout(async () => {
-          try {
-            await Logger.info("遅延タイマー完了。プリセット適用を開始");
-            const result = await applyDefaultPresetIfNeeded();
-            await Logger.info("起動時プリセット適用結果:", result);
-          } catch (err) {
-            await Logger.error("デフォルトプリセット適用エラー:", err);
-          }
-        }, 2500);
-      } else {
-        await Logger.info("起動時のデフォルトプリセット適用はスキップしました");
-      }
-      
       await Logger.info('拡張機能の初期化が完了しました');
     });
   } catch (error) {
@@ -407,57 +307,6 @@ async function clearDprCache() {
 
 // 論理⇔物理ピクセル変換用のユーティリティ関数
 
-// 論理ピクセルから物理ピクセルへの変換
-async function logicalToPhysical(logicalValue) {
-  const dpr = await getSystemDpr();
-  return Math.round(logicalValue * dpr);
-}
-
-// 物理ピクセルから論理ピクセルへの変換
-async function physicalToLogical(physicalValue) {
-  const dpr = await getSystemDpr();
-  return Math.round(physicalValue / dpr);
-}
-
-// バッチ変換（オブジェクト全体を一度に変換）
-async function convertLogicalToPhysical(logicalObj) {
-  const dpr = await getSystemDpr();
-  return {
-    width: Math.round(logicalObj.width * dpr),
-    height: Math.round(logicalObj.height * dpr),
-    left: Math.round(logicalObj.left * dpr),
-    top: Math.round(logicalObj.top * dpr),
-    dpr: dpr
-  };
-}
-
-async function convertPhysicalToLogical(physicalObj) {
-  const dpr = await getSystemDpr();
-  return {
-    width: Math.round(physicalObj.width / dpr),
-    height: Math.round(physicalObj.height / dpr),
-    left: Math.round(physicalObj.left / dpr),
-    top: Math.round(physicalObj.top / dpr),
-    dpr: dpr
-  };
-}
-
-// 物理ピクセル値を論理ピクセル値に変換
-async function convertToLogical(physicalWidth, physicalHeight) {
-  const dprFactor = await getSystemDpr();
-  const logicalWidth = Math.round(physicalWidth / dprFactor);
-  const logicalHeight = Math.round(physicalHeight / dprFactor);
-  return { width: logicalWidth, height: logicalHeight };
-}
-
-// 論理ピクセル値を物理ピクセル値に変換
-async function convertToPhysical(logicalWidth, logicalHeight) {
-  const dprFactor = await getSystemDpr();
-  const physicalWidth = Math.round(logicalWidth * dprFactor);
-  const physicalHeight = Math.round(logicalHeight * dprFactor);
-  return { width: physicalWidth, height: physicalHeight };
-}
-
 /**
  * 物理ピクセル値を論理ピクセル値に変換する
  * @param {Object} physicalValues - 物理ピクセル値 (width, height, left, top)
@@ -491,109 +340,6 @@ async function convertToLogicalPixels(physicalValues, dpr = null) {
     tableData: tableData,
     dpr: dpr
   };
-}
-
-/**
- * 論理ピクセル値を物理ピクセル値に変換する
- * @param {Object} logicalValues - 論理ピクセル値 (width, height, left, top)
- * @param {number} [dpr] - 使用するDPR値（指定なしの場合は取得）
- * @returns {Promise<Object>} 物理ピクセル値とテーブル出力
- */
-async function convertToPhysicalPixels(logicalValues, dpr = null) {
-  // DPR値が指定されていない場合は取得
-  if (dpr === null) {
-    dpr = await getSystemDpr();
-  }
-  
-  // 変換処理
-  const result = {
-    width: Math.round(logicalValues.width * dpr),
-    height: Math.round(logicalValues.height * dpr),
-    left: Math.round(logicalValues.left * dpr),
-    top: Math.round(logicalValues.top * dpr)
-  };
-  
-  // ログ用テーブル（オプション）
-  const tableData = {
-    幅: { 元値: logicalValues.width, 計算式: `${logicalValues.width} * ${dpr}`, 変換後: result.width },
-    高さ: { 元値: logicalValues.height, 計算式: `${logicalValues.height} * ${dpr}`, 変換後: result.height },
-    左位置: { 元値: logicalValues.left, 計算式: `${logicalValues.left} * ${dpr}`, 変換後: result.left },
-    上位置: { 元値: logicalValues.top, 計算式: `${logicalValues.top} * ${dpr}`, 変換後: result.top }
-  };
-  
-  return { 
-    values: result, 
-    tableData: tableData,
-    dpr: dpr
-  };
-}
-
-// 内部実装（共通コア機能）- 直接呼び出しは想定しない
-async function _applyPresetInternal(windowId, preset, operationName) {
-  try {
-    return await Logger.logPresetOperation(operationName || `"${preset.name}" を適用`, async () => {
-      // 1. 元のプリセット値を出力
-      await Logger.info("1. 元のプリセット値:", {
-        width: preset.width,
-        height: preset.height,
-        left: preset.left,
-        top: preset.top,
-      });
-
-      // 2. DPRの取得（非同期処理）
-      const dpr = await getSystemDpr();
-      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-
-      // 3. 変換計算
-      const logicalWidth = Math.round(preset.width / dpr);
-      const logicalHeight = Math.round(preset.height / dpr);
-      const logicalLeft = Math.round(preset.left / dpr);
-      const logicalTop = Math.round(preset.top / dpr);
-
-      await Logger.info("3. 物理ピクセル値をDPRで割って論理ピクセル値に変換");
-
-      // テーブル出力
-      await Logger.table({
-        幅: { 元値: preset.width, 計算式: `${preset.width} / ${dpr}`, 変換後: logicalWidth },
-        高さ: { 元値: preset.height, 計算式: `${preset.height} / ${dpr}`, 変換後: logicalHeight },
-        左位置: { 元値: preset.left, 計算式: `${preset.left} / ${dpr}`, 変換後: logicalLeft },
-        上位置: { 元値: preset.top, 計算式: `${preset.top} / ${dpr}`, 変換後: logicalTop }
-      });
-
-      // 4. ウィンドウに適用
-      const finalValues = {
-        width: logicalWidth,
-        height: logicalHeight,
-        left: logicalLeft,
-        top: logicalTop
-      };
-
-      await Logger.info("4. ウィンドウに適用する最終値:", finalValues);
-      await Logger.info(`対象ウィンドウID: ${windowId}`);
-
-      // ブラウザAPIに渡す
-      const result = await browser.windows.update(windowId, finalValues);
-
-      // 変更点: 結果オブジェクトを単純化してから出力
-      const simplifiedResult = {
-        id: result.id,
-        width: result.width,
-        height: result.height,
-        left: result.left,
-        top: result.top,
-        type: result.type,
-        state: result.state
-      };
-
-      // 5. 適用結果
-      await Logger.info("5. 適用結果:", simplifiedResult);
-
-      return { success: true, result: simplifiedResult };
-    });
-  } catch (error) {
-    await Logger.error('プリセット適用エラー:', error);
-    throw error;
-  }
 }
 
 /**
@@ -755,31 +501,10 @@ async function applyPresetWithOptions(preset, detachTab = false, targetWindowId 
   }
 }
 
-// 現在のウィンドウにプリセットを適用（ポップアップUIなどから呼ばれる）
-async function applyPreset(preset) {
-  try {
-    return await applyPresetWithOptions(preset, false);
-  } catch (error) {
-    await Logger.error('現在ウィンドウへのプリセット適用エラー:', error);
-    throw error;
-  }
-}
-
-// 現在のタブを別ウィンドウに独立させてプリセットを適用する関数
-async function detachCurrentTabWithPreset(preset) {
-  try {
-    return await applyPresetWithOptions(preset, true);
-  } catch (error) {
-    await Logger.error('タブ分離エラー:', error);
-    throw error;
-  }
-}
-
 // 指定のウィンドウにプリセットを適用（起動時適用などから呼ばれる）
 async function applyPresetToWindow(windowId, preset) {
   try {
-    const operationName = `"${preset.name}" をウィンドウ ${windowId} に適用`;
-    return await _applyPresetInternal(windowId, preset, operationName);
+    return await applyPresetWithOptions(preset, false, windowId);
   } catch (error) {
     await Logger.error(`ウィンドウ ${windowId} へのプリセット適用エラー:`, error);
     handleError('プリセット適用', error);
@@ -810,94 +535,6 @@ async function openSettingsPage() {
       browser.tabs.create({ url: 'views/settings.html' });
     }
   });
-}
-
-// ウィンドウ情報を取得（ウィンドウID指定対応バージョン）
-async function getCurrentWindowInfo(windowId = null) {
-  try {
-    await Logger.logWindowOperation("ウィンドウ情報取得", async () => {
-      // 1. 対象ウィンドウを取得
-      const win = windowId 
-        ? await browser.windows.get(windowId, { populate: true })
-        : await browser.windows.getCurrent({ populate: true });
-      
-      await Logger.info(`1. 対象ウィンドウ情報 (ID: ${win.id}):`, win);
-      await Logger.info("1. ブラウザから取得したウィンドウ情報:", win);
-
-      // 2. ユーザー設定のDPR値を取得
-      const dpr = await getSystemDpr();
-      await Logger.info(`2. ユーザー設定のDPR値: ${dpr} (拡大率: ${dpr * 100}%)`);
-
-      // 3. 論理ピクセル値（ブラウザから取得した値）
-      const logical = {
-        width: win.width,
-        height: win.height,
-        left: win.left,
-        top: win.top
-      };
-
-      // 4. 新しい共通関数を使用して物理ピクセル値に変換
-      const conversion = await convertToPhysicalPixels(logical, dpr);
-      const physical = conversion.values;
-
-      // 5. 結果を出力
-      await Logger.info("3. 最終的なウィンドウ情報:", {
-        論理ピクセル値: logical,
-        物理ピクセル値: physical,
-        DPR: dpr,
-        拡大率: `${dpr * 100}%`
-      });
-    });
-
-    // ウィンドウを取得し直す（グループ外に移動）
-    const win = await browser.windows.getCurrent({ populate: true });
-    const dpr = await getSystemDpr();
-
-    const logical = {
-      width: win.width,
-      height: win.height,
-      left: win.left,
-      top: win.top
-    };
-
-    // 新しい共通関数を使用
-    const conversion = await convertToPhysicalPixels(logical, dpr);
-    const physical = conversion.values;
-
-    return {
-      // 論理ピクセル値
-      width: logical.width,
-      height: logical.height,
-      left: logical.left,
-      top: logical.top,
-
-      // 物理ピクセル値
-      physicalWidth: physical.width,
-      physicalHeight: physical.height,
-      physicalLeft: physical.left,
-      physicalTop: physical.top,
-
-      // DPR情報
-      dpr: dpr,
-      dprPercent: dpr * 100
-    };
-  } catch (error) {
-    await Logger.error("ウィンドウ情報取得エラー:", error);
-
-    // エラー時のフォールバック
-    return {
-      width: CONFIG.DEFAULT_WIDTH, 
-      height: CONFIG.DEFAULT_HEIGHT, 
-      left: CONFIG.DEFAULT_LEFT, 
-      top: CONFIG.DEFAULT_TOP,
-      dpr: 1.0, 
-      dprPercent: 100,
-      physicalWidth: CONFIG.DEFAULT_WIDTH, 
-      physicalHeight: CONFIG.DEFAULT_HEIGHT,
-      physicalLeft: CONFIG.DEFAULT_LEFT, 
-      physicalTop: CONFIG.DEFAULT_TOP
-    };
-  }
 }
 
 // ブラウザ起動時のデフォルトプリセット適用
@@ -947,68 +584,29 @@ async function applyDefaultPresetIfNeeded() {
   }
 }
 
-// プリセットを保存（統一DPR版）
-async function savePreset(preset) {
-  try {
-    await Logger.logPresetOperation(`プリセット保存: "${preset.name}"`, async () => {
-      await Logger.info('プリセット保存を開始します');
-
-      // 既存コード（プリセット保存処理）
-      const data = await browser.storage.local.get('presets');
-      let presets = data.presets || [];
-
-      // 既存のプリセットの編集の場合
-      const existingIndex = presets.findIndex(p => p.id === preset.id);
-
-      if (existingIndex >= 0) {
-        presets[existingIndex] = preset;
-      } else {
-        // 新規プリセットの場合
-        preset.id = Date.now().toString();
-        presets.push(preset);
-      }
-
-      await browser.storage.local.set({ presets });
-      await Logger.info("保存したプリセット:", preset);
-
-      return presets;
-    });
-  } catch (error) {
-    handleError('プリセット保存', error);
-    throw error; // 必要に応じて再スロー
-  }
-}
-
 // 現在のウィンドウIDを取得
 async function getCurrentWindowId() {
   const win = await browser.windows.getCurrent();
   return win.id;
 }
 
-// プリセットを取得する関数
-async function getPresets() {
-  try {
-    const data = await browser.storage.local.get('presets');
-    return Array.isArray(data.presets) ? data.presets : [];
-  } catch (error) {
-    handleError('プリセット取得', error);
-    return [];
-  }
-}
-
-// 拡張機能の起動時に設定値を確認
+// ブラウザ起動時: 初期化し、起動時プリセットを1回だけ適用する
+// （persistent: false のため、背景スクリプトの再読み込みでは実行されない）
 browser.runtime.onStartup.addListener(async () => {
   try {
-    // DPR設定の確認
-    const dpr = await getSystemDpr();
-    await Logger.info(`拡張機能起動: 設定されているDPR値は ${dpr} (拡大率: ${dpr * 100}%)`);
+    await initialize();
 
-    // DPRが1.0でない場合は特別にログを出力
-    if (dpr !== 1.0) {
-      await Logger.info(`注意: 標準設定(100%)と異なる拡大率が設定されています。論理/物理ピクセル変換が有効です。`);
-    }
+    // 遅延実行してウィンドウの準備を待つ
+    setTimeout(async () => {
+      try {
+        const result = await applyDefaultPresetIfNeeded();
+        await Logger.info("起動時プリセット適用結果:", result);
+      } catch (err) {
+        await Logger.error("デフォルトプリセット適用エラー:", err);
+      }
+    }, 2500);
   } catch (err) {
-    handleError('起動時の設定チェック', err);
+    handleError('起動時処理', err);
   }
 });
 
@@ -1039,12 +637,6 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   } else if (request.action === 'getSystemDpr') {
     getSystemDpr(sendResponse);
     return true;  // 非同期レスポンスを維持
-  } else if (request.action === 'getCurrentWindowInfo') {
-    const targetWindowId = request.windowId;
-    await Logger.info(`現在のウィンドウ情報取得: 対象ウィンドウID ${targetWindowId}`);
-    const windowInfo = await getCurrentWindowInfo(targetWindowId);
-    sendResponse(windowInfo);
-    return true;  // 非同期レスポンスを維持
   } else if (request.action === 'presetSaved' || request.action === 'presetDeleted') {
     // プリセットが保存/削除された時にコンテキストメニューを更新
     await updateContextMenus();
@@ -1068,53 +660,14 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   }
 });
 
-// インストール時またはアップデート時の処理を修正
-browser.runtime.onInstalled.addListener(async (details) => {
-  // まずイベントリスナーの即時処理部分を最小化
-  const reason = details.reason;
-
-  // setTimeout を使って処理を遅延させる
-  setTimeout(async () => {
-
-    try {
-      return await Logger.logSystemOperation('インストールまたはアップデート', async () => {
-
-        if (reason === 'install') {
-          await Logger.info('初めてのインストールです');
-          // 初めてインストールされたときの処理
-          await browser.storage.local.set({ defaultPresetName: CONFIG.DEFAULT_PRESET_NAME });
-        } else if (reason === 'update') {
-          await Logger.info('アップデートしました');
-          // アップデートされたときの処理
-        }
-
-        // プリセットを初期化
-        await browser.storage.local.get(CONFIG.DEFAULT_PRESET_NAME).then(async item => {
-          if (!item[CONFIG.DEFAULT_PRESET_NAME]) {
-            await Logger.info('デフォルトプリセットを初期化します');
-            const defaultPreset = {
-              name: CONFIG.DEFAULT_PRESET_NAME,
-              width: CONFIG.DEFAULT_WIDTH,
-              height: CONFIG.DEFAULT_HEIGHT
-            };
-            await browser.storage.local.set({ [CONFIG.DEFAULT_PRESET_NAME]: defaultPreset });
-          }
-        });
-
-        // 設定を初期化
-        await browser.storage.local.get(CONFIG.SYSTEM_DPR_STORAGE_KEY).then(async item => {
-          if (item[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
-            await Logger.info('DPR設定を初期化します');
-            await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
-          }
-        });
-
-      })
-    } catch (err) {
-      handleError('インストール処理', err);
-    }
-  }, 100)
-})
+// インストール時・アップデート時（一時的な読み込み含む）に初期化する
+browser.runtime.onInstalled.addListener(async () => {
+  try {
+    await initialize();
+  } catch (err) {
+    handleError('インストール処理', err);
+  }
+});
 
 
 // コンテキストメニューがクリックされたときの処理
@@ -1280,6 +833,3 @@ async function handleError(context, error) {
   await Logger.error(`${context}エラー:`, error);
   // エラー通知やリカバリー処理などもここで一元管理できる
 }
-
-// 拡張機能を初期化
-initialize();
