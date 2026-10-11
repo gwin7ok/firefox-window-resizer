@@ -9,6 +9,14 @@ The version in `manifest.json` is the single source of truth. Each release has a
 ## [Unreleased]
 
 
+## [1.1.3] - 2026-10-11
+
+- 確認プロンプトの既定を Yes に変更（Enter のみで続行）
+- 保存データのアクセスとDPR変換を scripts/store.js に集約
+- プリセット表示の共通処理を集約
+
+
+
 ## [1.1.2] - 2026-10-11
 
 - 開発・ビルド・リリース手順を DEVELOPMENT.md に分離
