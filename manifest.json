@@ -23,6 +23,7 @@
       "scripts": [
          "scripts/logger.js",
          "scripts/store.js",
+         "scripts/window-actions.js",
          "scripts/background.js"
       ],
       "persistent": false
