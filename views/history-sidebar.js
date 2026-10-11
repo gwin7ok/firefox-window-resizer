@@ -1,11 +1,20 @@
 // 履歴サイドバーのJavaScript処理
 
-const HISTORY_MAX_RESULTS = 100;
+const HISTORY_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
 
 let searchTimer = null;
 let expandedItem = null;
 let contextMenuElement = null;
+
+// 読み込み済みの履歴（「さらに読み込む」で追加される）
+let loadedItems = [];
+let seenIds = new Set();
+let oldestVisitTime = null; // 次ページ取得用（これより前の履歴を取得する）
+let hasMore = false;
+let currentQuery = '';
+// ユーザーが開閉した日付グループの状態（key -> open）。未操作の日付は既定の状態になる
+let toggledGroups = new Map();
 
 document.addEventListener('DOMContentLoaded', async function () {
   const searchInput = document.getElementById('search-input');
@@ -26,33 +35,115 @@ document.addEventListener('DOMContentLoaded', async function () {
   window.addEventListener('resize', closeContextMenu);
   document.addEventListener('scroll', closeContextMenu, true);
 
+  document.getElementById('history-more').addEventListener('click', loadMoreHistory);
+
   await loadHistory();
 });
 
-// 履歴を検索して一覧を表示
+// 履歴を最初から検索して一覧を表示（検索語の変更時など）
 async function loadHistory() {
-  const list = document.getElementById('history-list');
+  currentQuery = document.getElementById('search-input').value.trim();
+  loadedItems = [];
+  seenIds = new Set();
+  oldestVisitTime = null;
+  hasMore = false;
+  toggledGroups = new Map();
+
+  await fetchHistoryPage();
+}
+
+// 「さらに読み込む」: 読み込み済みの最も古い履歴より前を取得する
+async function loadMoreHistory() {
+  await fetchHistoryPage();
+}
+
+// 履歴を1ページ分取得して、一覧に反映する
+async function fetchHistoryPage() {
   const status = document.getElementById('history-status');
-  const text = document.getElementById('search-input').value.trim();
 
   try {
-    const items = await browser.history.search({
-      text: text,
+    const query = {
+      text: currentQuery,
       startTime: 0,
-      maxResults: HISTORY_MAX_RESULTS
-    });
-
-    list.innerHTML = '';
-    expandedItem = null;
-    status.textContent = items.length === 0 ? '履歴が見つかりません' : '';
-
-    for (const item of items) {
-      list.appendChild(createHistoryItem(item));
+      maxResults: HISTORY_PAGE_SIZE
+    };
+    if (oldestVisitTime !== null) {
+      query.endTime = oldestVisitTime;
     }
+
+    const items = await browser.history.search(query);
+
+    let added = 0;
+    for (const item of items) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        loadedItems.push(item);
+        added++;
+      }
+      if (item.lastVisitTime && (oldestVisitTime === null || item.lastVisitTime < oldestVisitTime)) {
+        oldestVisitTime = item.lastVisitTime;
+      }
+    }
+
+    // 1ページ分が埋まっていて新しい項目が増えた場合のみ、続きがあるとみなす
+    hasMore = items.length >= HISTORY_PAGE_SIZE && added > 0;
+    status.textContent = loadedItems.length === 0 ? '履歴が見つかりません' : '';
+    renderHistory();
   } catch (err) {
     await Logger.error('履歴読み込みエラー:', err);
     status.textContent = '履歴の読み込みに失敗しました';
   }
+}
+
+// 日付ごとの開閉できるツリーとして描画する
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const moreButton = document.getElementById('history-more');
+  const todayKey = HistoryGroups.dateKey(Date.now());
+
+  list.innerHTML = '';
+  expandedItem = null;
+
+  for (const group of HistoryGroups.groupByDate(loadedItems)) {
+    const li = document.createElement('li');
+    li.className = 'history-group';
+
+    const details = document.createElement('details');
+    // 未操作の日付: 検索中はすべて開く。通常は今日だけ開く
+    details.open = toggledGroups.has(group.key)
+      ? toggledGroups.get(group.key)
+      : (currentQuery !== '' || group.key === todayKey);
+    details.addEventListener('toggle', function () {
+      toggledGroups.set(group.key, details.open);
+    });
+
+    const summary = document.createElement('summary');
+    summary.className = 'history-group-summary';
+
+    const label = document.createElement('span');
+    label.className = 'history-group-label';
+    label.textContent = HistoryGroups.groupLabel(group.key);
+
+    const count = document.createElement('span');
+    count.className = 'history-group-count';
+    count.textContent = `${group.items.length}件`;
+
+    summary.appendChild(label);
+    summary.appendChild(count);
+    details.appendChild(summary);
+
+    const items = document.createElement('ul');
+    items.className = 'history-group-items';
+    for (const item of group.items) {
+      items.appendChild(createHistoryItem(item));
+    }
+    details.appendChild(items);
+
+    li.appendChild(details);
+    list.appendChild(li);
+  }
+
+  moreButton.hidden = !hasMore;
 }
 
 // 履歴項目を作成（クリックでプリセット選択を展開）
@@ -79,7 +170,7 @@ function createHistoryItem(historyItem) {
   if (historyItem.lastVisitTime) {
     const time = document.createElement('div');
     time.className = 'history-time';
-    time.textContent = formatVisitTime(historyItem.lastVisitTime);
+    time.textContent = HistoryGroups.formatTime(historyItem.lastVisitTime);
     header.appendChild(time);
   }
 
@@ -112,17 +203,6 @@ function createHistoryItem(historyItem) {
   });
 
   return li;
-}
-
-// 最終訪問日時の表示用文字列（例: 2026/10/11 18:20）
-function formatVisitTime(timestamp) {
-  return new Date(timestamp).toLocaleString('ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 }
 
 // 毎回プリセットを選択する：展開部にプリセットのボタンを表示
