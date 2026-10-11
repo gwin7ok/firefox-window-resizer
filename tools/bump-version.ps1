@@ -73,9 +73,9 @@ if ([string]::IsNullOrWhiteSpace($unreleased)) {
         Write-Host 'Dry run: CHANGELOG.md は変更しません（上記が [Unreleased] に入る想定で続行します）。'
         $changelogRaw = $writeBack
     } else {
-        $answer = (Read-Host 'この内容を [Unreleased] に書き込みますか? [y=書き込んで続行 / e=書き込んで編集 / N=中止]').Trim()
+        $answer = (Read-Host 'この内容を [Unreleased] に書き込みますか? [Y=書き込んで続行 (Enter) / e=書き込んで編集 / n=中止]').Trim()
         switch -Regex ($answer) {
-            '^[yY]$' { $changelogRaw = $writeBack }
+            '^([yY]|)$' { $changelogRaw = $writeBack }   # Enter のみ（空入力）も続行
             '^[eE]$' {
                 [System.IO.File]::WriteAllText($changelogPath, $writeBack, (New-Object System.Text.UTF8Encoding($false)))
                 Write-Host 'CHANGELOG.md に書き込みました。内容を編集して、もう一度実行してください。' -ForegroundColor Green

@@ -80,8 +80,9 @@ if ($DryRun) {
 }
 
 if (-not $Yes) {
-    $answer = (Read-Host "リリース $tag を生成します（push するとGitHub Actionsが署名・公開します）。実行しますか? [y/N]").Trim()
-    if ($answer -notmatch '^[yY]') { Write-Host '中止しました。'; exit 0 }
+    $answer = (Read-Host "リリース $tag を生成します（push するとGitHub Actionsが署名・公開します）。実行しますか? [Y/n]").Trim()
+    # Enter のみ（空入力）は「はい」。y/Y 以外の入力は中止
+    if ($answer -ne '' -and $answer -notmatch '^[yY]') { Write-Host '中止しました。'; exit 0 }
 }
 
 if ($needCommit) {
