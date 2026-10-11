@@ -109,51 +109,9 @@ Firefox Window Resizerは、ブラウザウィンドウのサイズと位置を�
 - 高速なプリセット適用
 - メモリ効率的な実装
 
-## 開発・ビルド
+## 開発者向け情報
 
-### ファイル構成
-```
-firefox-window-resizer/
-├── manifest.json          # 拡張機能マニフェスト（version が正）
-├── CHANGELOG.md           # 更新履歴（リリースノートの原本）
-├── .github/workflows/     # リリース用 GitHub Actions
-├── tools/                 # バージョン更新・タグ発行スクリプト
-├── scripts/
-│   ├── background.js      # バックグラウンド処理
-│   └── logger.js          # ログ機能
-├── views/
-│   ├── popup.html/js      # ポップアップUI
-│   ├── settings.html/js   # 設定画面
-│   └── preset-editor.html/js  # プリセット編集
-├── styles/               # CSS スタイルシート
-└── assets/               # アイコン等のリソース
-```
-
-### ビルド方法
-
-ローカル確認用（未署名）:
-
-1. `makexpi_FWR.bat` を実行してXPIを生成（`about:debugging` の一時的なアドオン読み込みでも確認できます）
-
-### リリース手順
-
-署名済みXPIは、`vX.Y.Z` タグの push をきっかけにGitHub Actionsが作成し、Releaseに添付します。
-
-1. （任意）`CHANGELOG.md` の `## [Unreleased]` に変更内容を書く。空のままなら手順2で、前回タグ（なければ CHANGELOG の最終変更コミット）以降のコミット件名から自動生成されます
-2. **Ctrl+Shift+2**（タスク `Update Changelog`）: `[Unreleased]` が空なら生成内容を確認（y=書き込んで続行 / e=書き込んで編集 / N=中止）し、次のバージョン（パッチ/マイナー/メジャー）を選ぶと、`manifest.json` の `version` を更新し、CHANGELOG の `[Unreleased]` を `[x.y.z] - 日付` に切り出します
-3. **Ctrl+Shift+3**（タスク `release-tag-and-push-short`）: `Release vX.Y.Z` をコミット → push → タグ発行までを行います（確認プロンプトあり。既存タグの再作成はしません）
-4. Actions が署名（AMO unlisted）して `gwins-window-resizer.xpi` を Release に添付します
-
-コマンドラインから実行する場合:
-
-```powershell
-pwsh ./tools/bump-version.ps1 [-Version 1.2.0]
-pwsh ./tools/release-tag.ps1 -CommitRelease [-DryRun]
-```
-
-ローカル確認用の未署名XPIは **Ctrl+Shift+4**（`makexpi_FWR.bat`）で生成できます。
-
-タスクは `.vscode/tasks.json` で定義しています。事前に GitHub の Secrets に `AMO_JWT_ISSUER` と `AMO_JWT_SECRET` を登録しておく必要があります。AMOは同一バージョンを再署名できないため、やり直す場合はバージョンを上げてください。
+ビルド・動作確認・リリース手順は [DEVELOPMENT.md](DEVELOPMENT.md) を参照してください。
 
 ## ライセンス・著作権
 
