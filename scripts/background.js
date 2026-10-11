@@ -163,10 +163,11 @@ async function createPresetContextMenus() {
     const contextTitles = {
       "link": "Firefox Window Resizer (別ウィンドウで開く)",
       "page": "Firefox Window Resizer (別ウィンドウに移動)",
-      "tab": "Firefox Window Resizer (別ウィンドウに移動)"
+      "tab": "Firefox Window Resizer (別ウィンドウに移動)",
+      "bookmark": "Firefox Window Resizer (別ウィンドウで開く)"
     };
     
-    const contexts = ["link", "page", "tab"];
+    const contexts = ["link", "page", "tab", "bookmark"];
     
     for (const context of contexts) {
       // 親メニューを作成
@@ -1157,12 +1158,24 @@ async function handlePresetContextMenu(info, tab) {
     }
     
     const preset = presets[presetIndex];
-    const contextType = parts[1]; // "link", "page", "tab"
+    const contextType = parts[1]; // "link", "page", "tab", "bookmark"
     await Logger.info(`コンテキストメニューからプリセット適用: ${preset.name} (コンテキスト: ${contextType})`);
     
     if (contextType === 'link') {
       // URLリンクの場合：リンクURLを新しいウィンドウで開いてプリセット適用
       await openLinkInNewWindowWithPreset(info.linkUrl, preset);
+    } else if (contextType === 'bookmark') {
+      // ブックマークの場合：ブックマークのURLを新しいウィンドウで開いてプリセット適用
+      if (!info.bookmarkId) {
+        await Logger.error('ブックマークIDが取得できませんでした');
+        return;
+      }
+      const [bookmark] = await browser.bookmarks.get(info.bookmarkId);
+      if (!bookmark || !bookmark.url) {
+        await Logger.warn('URLを持たないブックマーク項目（フォルダ等）のため処理をスキップします');
+        return;
+      }
+      await openLinkInNewWindowWithPreset(bookmark.url, preset);
     } else {
       // ページ背景・タブの場合：現在のタブを別ウィンドウ化してプリセット適用
       await applyPresetWithOptions(preset, true, tab.windowId, tab.id);
