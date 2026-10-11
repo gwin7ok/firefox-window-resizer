@@ -4,7 +4,7 @@ Param(
 )
 
 # manifest.json の version を更新し、CHANGELOG.md の [Unreleased] を [Version] - 日付 に切り出す。
-# -Version を省略すると、次のバージョンを対話的に選択できる（VS Code: Ctrl+Shift+2）。
+# -Version を省略すると、次のバージョンを対話的に選択できる（VS Code タスク: Update Changelog）。
 # 使い方: pwsh ./tools/bump-version.ps1 [-Version 1.2.0] [-DryRun]
 
 Set-StrictMode -Version Latest
@@ -134,4 +134,4 @@ if ($DryRun) {
 
 [System.IO.File]::WriteAllText($manifestPath, $newManifest, (New-Object System.Text.UTF8Encoding($false)))
 [System.IO.File]::WriteAllText($changelogPath, $newChangelog, (New-Object System.Text.UTF8Encoding($false)))
-Write-Host '更新しました。内容を確認し、Ctrl+Shift+3 でリリースを生成してください。' -ForegroundColor Green
+Write-Host '更新しました。内容を確認し、tools/release-tag.ps1 -CommitRelease（タスク: release-tag-and-push-short）でリリースを生成してください。' -ForegroundColor Green

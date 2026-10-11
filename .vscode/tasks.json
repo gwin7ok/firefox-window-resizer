@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            // Ctrl+Shift+4: ローカル確認用の未署名XPIを生成 (makexpi_FWR.bat)
+            // ローカル確認用の未署名XPIを生成 (makexpi_FWR.bat)
             "label": "Publish: (Release win-x64)",
             "type": "shell",
             "command": "cmd",
@@ -21,7 +21,7 @@
             }
         },
         {
-            // Ctrl+Shift+2: 更新履歴の更新（manifest.json の version 更新 + CHANGELOG の [Unreleased] を版に切り出し）
+            // 更新履歴の更新（manifest.json の version 更新 + CHANGELOG の [Unreleased] を版に切り出し）
             "label": "Update Changelog",
             "type": "shell",
             "command": "pwsh",
@@ -37,7 +37,7 @@
             }
         },
         {
-            // Ctrl+Shift+3: リリース生成（Release vX.Y.Z をコミット → push → タグ発行 → Actions が署名・公開）
+            // リリース生成（Release vX.Y.Z をコミット → push → タグ発行 → Actions が署名・公開）
             "label": "release-tag-and-push-short",
             "type": "shell",
             "command": "pwsh",

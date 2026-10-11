@@ -30,7 +30,7 @@ Write-Host "Tag: $tag"
 # CHANGELOG に該当節があるか
 $changelog = Get-Content -Raw -Path (Join-Path $repoRoot 'CHANGELOG.md') -Encoding UTF8
 if ($changelog -notmatch "(?m)^## \[$([regex]::Escape($version))\]") {
-    Write-Error "CHANGELOG.md has no section for $version. Run Ctrl+Shift+2 (tools/bump-version.ps1) first."
+    Write-Error "CHANGELOG.md has no section for $version. Run tools/bump-version.ps1 first."
     exit 3
 }
 
