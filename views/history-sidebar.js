@@ -75,6 +75,14 @@ function createHistoryItem(historyItem) {
   header.appendChild(title);
   header.appendChild(url);
 
+  // 最終訪問日時
+  if (historyItem.lastVisitTime) {
+    const time = document.createElement('div');
+    time.className = 'history-time';
+    time.textContent = formatVisitTime(historyItem.lastVisitTime);
+    header.appendChild(time);
+  }
+
   const presetsBox = document.createElement('div');
   presetsBox.className = 'history-presets';
 
@@ -104,6 +112,17 @@ function createHistoryItem(historyItem) {
   });
 
   return li;
+}
+
+// 最終訪問日時の表示用文字列（例: 2026/10/11 18:20）
+function formatVisitTime(timestamp) {
+  return new Date(timestamp).toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 // 毎回プリセットを選択する：展開部にプリセットのボタンを表示

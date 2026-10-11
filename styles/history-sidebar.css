@@ -59,6 +59,12 @@ body {
   color: #737373;
 }
 
+.history-time {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #737373;
+}
+
 .history-presets {
   display: none;
   padding: 4px 4px 8px;
