@@ -65,7 +65,7 @@ jobs:
             --channel unlisted `
             --api-key $env:AMO_JWT_ISSUER `
             --api-secret $env:AMO_JWT_SECRET `
-            --ignore-files ".github" "tools" ".vscode" "*.md" "*.ps1" "*.bat" "*.xpi" "*.zip" ".gitignore" "dist"
+            --ignore-files ".github" "tools" "tests" ".vscode" "*.md" "*.ps1" "*.bat" "*.xpi" "*.zip" ".gitignore" "dist"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $signed = Get-ChildItem dist -Filter *.xpi

@@ -55,6 +55,21 @@
             }
         },
         {
+            // 単体テスト（browser API のモック。Node のみ必要）
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "node",
+            "args": [
+                "./tests/run.js"
+            ],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "showReuseMessage": false
+            }
+        },
+        {
             // リリース内容の事前確認（何も実行しない）
             "label": "release-tag: dry run",
             "type": "shell",

@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+
+      - name: Unit tests (mocked browser API)
+        run: node tests/run.js
+
+      - name: Lint extension (web-ext)
+        run: >
+          npx --yes web-ext@8 lint
+          --source-dir .
+          --ignore-files tools tests .github .vscode "*.md" "*.ps1" "*.bat" "*.xpi" "*.zip"

@@ -11,6 +11,7 @@ firefox-window-resizer/
 ├── DEVELOPMENT.md         # このドキュメント
 ├── .github/workflows/     # リリース用 GitHub Actions
 ├── .vscode/tasks.json     # VS Code タスク（更新履歴・リリース・ローカルビルド）
+├── tests/                 # 単体テスト（browser API をモックした Node テスト）
 ├── tools/                 # バージョン更新・タグ発行・ローカルビルドのスクリプト
 ├── scripts/
 │   ├── background.js      # バックグラウンド処理
@@ -38,6 +39,16 @@ firefox-window-resizer/
 
    `dist/gwins-window-resizer.xpi` が作成されます（`dist/` は Git の追跡対象外です）。エクスプローラーからは `tools/build-xpi.bat` をダブルクリックしても実行できます。VS Code のタスクから実行する場合は、`Tasks: Run Task` で `Publish: (Release win-x64)` を選びます。
 2. 署名のない XPI は通常の Firefox にはインストールできません。動作確認には `about:debugging` →「このFirefox」→「一時的なアドオンを読み込む」で `manifest.json` を選びます。
+
+## テスト
+
+背景スクリプト（`scripts/background.js`）を `browser` API のモックで読み込み、起動時の初期化・メニュー・メッセージの挙動を検証します。Node.js だけで動作し、追加のインストールは不要です。
+
+```powershell
+node tests/run.js
+```
+
+VS Code のタスクでは `Run Tests` です。`manifest.json` と各HTMLが参照するファイルの存在確認（`tests/manifest.test.js`）も含みます。`main` への push とプルリクエストで、GitHub Actions（`.github/workflows/test.yml`）が同じテストと `web-ext lint` を自動実行します。
 
 ## リリース手順
 
@@ -68,6 +79,7 @@ firefox-window-resizer/
 | `Update Changelog` | バージョン更新と更新履歴の切り出し | `pwsh -NoProfile -File ./tools/bump-version.ps1` |
 | `release-tag-and-push-short` | コミット・push・タグ発行 | `pwsh -NoProfile -File ./tools/release-tag.ps1 -CommitRelease` |
 | `release-tag: dry run` | リリース内容の事前確認（何も実行しない） | `pwsh -NoProfile -File ./tools/release-tag.ps1 -CommitRelease -DryRun` |
+| `Run Tests` | 単体テスト | `node tests/run.js` |
 | `Publish: (Release win-x64)` | ローカル用の未署名XPI生成 | `pwsh -NoProfile -File ./tools/build-xpi.ps1` |
 
 キーボードショートカットへの割り当ては、各自の VS Code 側の設定（`keybindings.json`）で行ってください。
