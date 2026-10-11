@@ -258,8 +258,7 @@ function createHistoryItem(historyItem) {
 async function renderPresetButtons(container, url) {
   container.innerHTML = '';
 
-  const data = await browser.storage.local.get('presets');
-  const presets = Array.isArray(data.presets) ? data.presets : [];
+  const presets = await FwrStore.getPresets();
 
   if (presets.length === 0) {
     const message = document.createElement('div');
@@ -300,8 +299,7 @@ function createPresetButton(preset, url) {
 async function showContextMenu(x, y, url) {
   closeContextMenu();
 
-  const data = await browser.storage.local.get('presets');
-  const presets = Array.isArray(data.presets) ? data.presets : [];
+  const presets = await FwrStore.getPresets();
 
   const menu = document.createElement('div');
   menu.className = 'history-context-menu';

@@ -15,6 +15,7 @@ firefox-window-resizer/
 ├── tools/                 # バージョン更新・タグ発行・ローカルビルドのスクリプト
 ├── scripts/
 │   ├── background.js      # バックグラウンド処理
+│   ├── store.js           # 保存データ(プリセット・設定・拡大率)の読み書きと論理/物理ピクセル変換
 │   └── logger.js          # ログ機能
 ├── views/
 │   ├── popup.html/js      # ポップアップUI

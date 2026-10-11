@@ -1,26 +1,3 @@
-// 設定値を集約するCONFIGオブジェクト
-const CONFIG = {
-  // ストレージキー
-  SYSTEM_DPR_STORAGE_KEY: 'systemDpr',
-
-  // 設定のデフォルト値
-  DEFAULT_SETTINGS: {
-    defaultPresetId: null  // ブラウザ起動時に適用するプリセットID
-  },
-  
-  // デフォルトプリセット
-  DEFAULT_PRESETS: [
-    {
-      id: "preset-default",
-      name: "新規プリセット",
-      width: 1024,
-      height: 768,
-      left: 0,
-      top: 0
-    }
-  ]
-};
-
 // DPR情報表示関数 - getSystemDprを活用
 async function showDprInfo() {
   try {
@@ -43,8 +20,7 @@ async function showDprInfo() {
 async function showPresetInfo() {
   try {
     return await Logger.logPresetOperation('登録状況', async () => {
-      const data = await browser.storage.local.get('presets');
-      const presets = Array.isArray(data.presets) ? data.presets : [];
+      const presets = await FwrStore.getPresets();
 
       // プリセットの詳細情報をグループ化して出力
       await Logger.info(`登録プリセット数: ${presets.length}`);
@@ -133,8 +109,7 @@ async function createContextMenus() {
 async function createPresetContextMenus() {
   try {
     // ストレージからプリセットを取得
-    const data = await browser.storage.local.get('presets');
-    const presets = Array.isArray(data.presets) ? data.presets : [];
+    const presets = await FwrStore.getPresets();
     
     if (presets.length === 0) {
       await Logger.info('プリセットがないためコンテキストメニューは作成されません');
@@ -212,30 +187,20 @@ async function updateContextMenus() {
 
 /**
  * 初期データ（プリセット・設定・DPR）をストレージに用意する。何度呼んでも安全。
- * 既存プリセットに id がない場合は付与する（起動時適用がIDで検索するため）。
  * @returns {Promise<void>}
  */
 async function ensureDefaults() {
-  const data = await browser.storage.local.get(['presets', 'settings', CONFIG.SYSTEM_DPR_STORAGE_KEY]);
-
-  if (!Array.isArray(data.presets)) {
-    await browser.storage.local.set({ presets: CONFIG.DEFAULT_PRESETS.map(preset => ({ ...preset })) });
+  const result = await FwrStore.ensureDefaults();
+  if (result.presetsInitialized) {
     await Logger.info("デフォルトプリセットを初期化しました");
-  } else if (data.presets.some(preset => preset && !preset.id)) {
-    const presets = data.presets.map((preset, index) =>
-      (preset && !preset.id) ? { ...preset, id: `preset-${Date.now()}-${index}` } : preset
-    );
-    await browser.storage.local.set({ presets });
+  }
+  if (result.idsAssigned) {
     await Logger.info("idのないプリセットにidを付与しました");
   }
-
-  if (!data.settings) {
-    await browser.storage.local.set({ settings: CONFIG.DEFAULT_SETTINGS });
+  if (result.settingsInitialized) {
     await Logger.info("デフォルト設定を初期化しました");
   }
-
-  if (data[CONFIG.SYSTEM_DPR_STORAGE_KEY] === undefined) {
-    await browser.storage.local.set({ [CONFIG.SYSTEM_DPR_STORAGE_KEY]: 100 });
+  if (result.dprInitialized) {
     await Logger.info('DPR設定を初期化しました');
   }
 }
@@ -270,64 +235,15 @@ async function initialize() {
   }
 }
 
-// 設定関連の処理を強化
-
-// 設定からDPR値を取得する関数 - キャッシュ機能追加
-let cachedDpr = null;
-
-async function getSystemDpr(callback) {
+// 設定されている拡大率の係数（150% なら 1.5）を取得する
+async function getSystemDpr() {
   try {
-    // キャッシュがあればそれを使用
-    if (cachedDpr !== null) {
-      if (callback) {
-        callback(cachedDpr * 100);
-      }
-      return cachedDpr;
-    }
-
-    // 戻り値を格納する変数
-    let resultDpr;
-
-    await Logger.logDprOperation('読み込み', async () => {
-      await Logger.info('storage.localからDPR設定を取得中...');
-
-      const data = await browser.storage.local.get('systemDpr');
-
-      await Logger.info('取得したDPR設定データ:', data);
-
-      const percentValue = data.systemDpr !== undefined ? data.systemDpr : 100;
-      const dprValue = percentValue / 100;
-
-      await Logger.info(`システム拡大率設定: ${percentValue}% (DPR: ${dprValue})`);
-
-      // キャッシュに保存
-      cachedDpr = dprValue;
-      // 戻り値を格納
-      resultDpr = dprValue;
-
-
-
-      if (callback) {
-        callback(percentValue);
-      }
-
-    });
-
-    // 最後に確実に値を返す
-    return resultDpr || 1.0;
+    return await FwrStore.getDprFactor();
   } catch (err) {
     await Logger.error('DPR設定読み込みエラー:', err);
     return 1.0; // エラー時のデフォルト値
   }
 }
-
-// キャッシュをクリアする関数
-async function clearDprCache() {
-  cachedDpr = null;
-  await Logger.info('DPR設定キャッシュをクリアしました');
-}
-
-// 論理⇔物理ピクセル変換用のユーティリティ関数
 
 /**
  * 物理ピクセル値を論理ピクセル値に変換する
@@ -341,13 +257,8 @@ async function convertToLogicalPixels(physicalValues, dpr = null) {
     dpr = await getSystemDpr();
   }
   
-  // 変換処理
-  const result = {
-    width: Math.round(physicalValues.width / dpr),
-    height: Math.round(physicalValues.height / dpr),
-    left: Math.round(physicalValues.left / dpr),
-    top: Math.round(physicalValues.top / dpr)
-  };
+  // 変換処理（共通モジュールの変換を使用）
+  const result = FwrStore.toLogical(physicalValues, dpr);
   
   // ログ用テーブル（オプション）
   const tableData = {
@@ -564,16 +475,16 @@ async function applyDefaultPresetIfNeeded() {
   try {
     return await Logger.logSystemOperation('起動時プリセット適用', async () => {
       // 設定とプリセットを取得
-      const data = await browser.storage.local.get(['presets', 'settings']);
-      const { settings, presets } = data;
+      const settings = await FwrStore.getSettings();
+      const presets = await FwrStore.getPresets();
       
       // 設定チェック
-      if (!settings || settings.defaultPresetId === null) {
+      if (!settings.defaultPresetId) {
         await Logger.info("起動時のプリセット適用は無効化されています");
         return { applied: false, reason: "disabled" };
       }
       
-      if (!Array.isArray(presets) || presets.length === 0) {
+      if (presets.length === 0) {
         await Logger.info("適用可能なプリセットがありません");
         return { applied: false, reason: "no_presets" };
       }
@@ -633,16 +544,6 @@ browser.runtime.onStartup.addListener(async () => {
   }
 });
 
-// ストレージ変更検知
-browser.storage.onChanged.addListener(async (changes, area) => {
-  if (area === 'local' && changes.systemDpr) {
-    await Logger.info('ストレージ変更検知:', changes.systemDpr);
-    await Logger.info(`DPR設定変更: ${changes.systemDpr.oldValue || '未設定'} -> ${changes.systemDpr.newValue}%`);
-    await clearDprCache(); // キャッシュをクリア
-    await getSystemDpr();
-  }
-});
-
 // プリセットの保存/削除通知を受けたときの処理
 async function handlePresetsChanged(action) {
   // コンテキストメニューを更新
@@ -679,9 +580,6 @@ browser.runtime.onMessage.addListener((request) => {
       return openLinkInNewWindowWithPreset(request.url, request.preset, request.windowId);
     case 'openSettingsPage':
       return openSettingsPage();
-    case 'getSystemDpr':
-      // 拡大率（%）を返す
-      return getSystemDpr().then(dpr => Math.round(dpr * 100));
     case 'presetSaved':
     case 'presetDeleted':
       return handlePresetsChanged(request.action);
@@ -739,8 +637,7 @@ async function handlePresetContextMenu(info, tab) {
     }
 
     // プリセットを取得（メニューIDのキーはプリセットID。並べ替え直後でも正しいプリセットを指す）
-    const data = await browser.storage.local.get('presets');
-    const presets = Array.isArray(data.presets) ? data.presets : [];
+    const presets = await FwrStore.getPresets();
     const preset = findPresetByMenuKey(presets, parsed.key);
     if (!preset) {
       await Logger.error('メニューに対応するプリセットが見つかりません:', parsed.key);
@@ -788,8 +685,7 @@ async function handleDuplicateContextMenu(info, tab) {
       return;
     }
 
-    const data = await browser.storage.local.get('presets');
-    const presets = Array.isArray(data.presets) ? data.presets : [];
+    const presets = await FwrStore.getPresets();
     const preset = findPresetByMenuKey(presets, parsed.key);
     if (!preset) {
       await Logger.error('メニューに対応するプリセットが見つかりません:', parsed.key);

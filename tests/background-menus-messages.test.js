@@ -38,6 +38,7 @@ function makeEnv(initialStorage) {
   };
   const sandbox = { browser, Logger: logger, console, setTimeout, clearTimeout, Promise };
   vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'store.js'), 'utf8'), sandbox, { filename: 'store.js' });
   vm.runInContext(fs.readFileSync(SRC, 'utf8'), sandbox, { filename: 'background.js' });
   return { store, calls, L };
 }
@@ -108,10 +109,8 @@ let n = 0; const ok = (m) => { n++; console.log('PASS', m); };
   // A4: onMessage returns promises only for handled messages
   {
     const env = makeEnv({ presets, systemDpr: 150 });
-    const r = env.L.message({ action: 'getSystemDpr' });
-    assert.ok(r && typeof r.then === 'function');
-    assert.strictEqual(await r, 150);
     assert.strictEqual(env.L.message({ action: 'unknown' }), undefined);
+    assert.strictEqual(env.L.message({ action: 'getSystemDpr' }), undefined, 'removed message is not handled');
     const r2 = env.L.message({ action: 'applyPreset', preset: presets[0], detachTab: false, windowId: 1 });
     assert.ok(typeof r2.then === 'function'); await r2;
     assert.deepStrictEqual(env.calls.windowsUpdate[0], [1, { width: 533, height: 400, left: 1, top: 1 }]);

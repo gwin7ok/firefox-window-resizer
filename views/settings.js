@@ -28,21 +28,18 @@ async function loadInitialDprSetting() {
     await Logger.logDprOperation('読み込み', async () => {
       await Logger.info('システムDPR設定を読み込んでいます...');
 
-      // background.jsのgetSystemDpr関数を呼び出す
-      const backgroundPage = await browser.runtime.getBackgroundPage();
-      backgroundPage.getSystemDpr(async function (dprValue) {
-        await Logger.info('読み込まれたDPR設定:', dprValue, '%');
+      const dprValue = await FwrStore.getDprPercent();
+      await Logger.info('読み込まれたDPR設定:', dprValue, '%');
 
-        // フォームに設定
-        const dprInput = document.getElementById('system-dpr');
-        if (dprInput) {
-          dprInput.value = dprValue;
-        } else {
-          await Logger.error('DPR入力要素が見つかりません');
-        }
+      // フォームに設定
+      const dprInput = document.getElementById('system-dpr');
+      if (dprInput) {
+        dprInput.value = dprValue;
+      } else {
+        await Logger.error('DPR入力要素が見つかりません');
+      }
 
-        await Logger.info('DPR設定の読み込みが完了しました');
-      });
+      await Logger.info('DPR設定の読み込みが完了しました');
     });
   } catch (err) {
     await Logger.error('DPR設定読み込みエラー:', err);
@@ -140,8 +137,7 @@ async function loadPresets() {
     await Logger.logPresetOperation('リスト読み込み', async () => {
       await Logger.info('保存済みプリセットを読み込んでいます...');
 
-      const data = await browser.storage.local.get('presets');
-      const presets = data.presets || [];
+      const presets = await FwrStore.getPresets();
 
       const container = document.getElementById('presets-container');
       const noPresetsMessage = document.getElementById('no-presets-message');
@@ -333,20 +329,19 @@ async function deletePreset(id) {
     await Logger.logPresetOperation('削除', async () => {
       await Logger.info(`プリセット ID:${id} を削除します`);
 
-      const data = await browser.storage.local.get(['presets', 'settings']);
-      let presets = data.presets || [];
-      let settings = data.settings || {};
+      let presets = await FwrStore.getPresets();
+      const settings = await FwrStore.getSettings();
 
       // 指定されたIDのプリセットを除外
       presets = presets.filter(preset => preset.id !== id);
 
       // 保存
-      await browser.storage.local.set({ presets });
+      await FwrStore.savePresets(presets);
 
       // もし削除したプリセットが起動時設定に使用されていたら、設定をnullにリセット
       if (settings.defaultPresetId === id) {
         settings.defaultPresetId = null;
-        await browser.storage.local.set({ settings });
+        await FwrStore.saveSettings(settings);
         await Logger.info('削除されたプリセットが起動時設定に使用されていたため、設定をリセットしました');
       }
 
@@ -387,13 +382,7 @@ async function saveDprSetting() {
       }
 
       // 保存
-      await browser.storage.local.set({ systemDpr: dprValue });
-
-      // 保存したことをバックグラウンドスクリプトに通知
-      await browser.runtime.sendMessage({
-        action: 'dprSettingUpdated',
-        value: dprValue
-      });
+      await FwrStore.setDprPercent(dprValue);
 
       // 保存成功メッセージを表示
       const messageElement = document.getElementById('dpr-save-message');
@@ -422,14 +411,12 @@ async function loadDefaultPresetSetting() {
       await Logger.info('起動時適用プリセット設定を読み込んでいます...');
 
       // 設定を取得
-      const data = await browser.storage.local.get('settings');
-      const settings = data.settings || { defaultPresetId: null };
-      
+      const settings = await FwrStore.getSettings();
+
       await Logger.info('読み込まれた設定:', settings);
 
       // プリセット一覧を取得
-      const presetsData = await browser.storage.local.get('presets');
-      const presets = presetsData.presets || [];
+      const presets = await FwrStore.getPresets();
       
       // プリセットセレクトボックスに選択肢を追加
       const selectBox = document.getElementById('default-preset');
@@ -482,13 +469,12 @@ async function saveDefaultPresetSetting() {
       await Logger.info('保存する値:', { defaultPresetId });
       
       // 既存の設定を取得して更新
-      const data = await browser.storage.local.get('settings');
-      const settings = data.settings || {};
-      
+      const settings = await FwrStore.getSettings();
+
       settings.defaultPresetId = defaultPresetId;
-      
+
       // 設定を保存
-      await browser.storage.local.set({ settings });
+      await FwrStore.saveSettings(settings);
       
       await Logger.info('起動時プリセット設定を保存しました');
       showStatusMessage('起動時プリセット設定を保存しました');
@@ -508,15 +494,14 @@ async function movePreset(fromIndex, toIndex) {
       await Logger.info(`プリセットを移動: ${fromIndex} → ${toIndex}`);
       
       // プリセット一覧を取得
-      const data = await browser.storage.local.get('presets');
-      let presets = data.presets || [];
-      
+      const presets = await FwrStore.getPresets();
+
       // 順序を変更
       const [movedPreset] = presets.splice(fromIndex, 1);
       presets.splice(toIndex, 0, movedPreset);
-      
+
       // 保存
-      await browser.storage.local.set({ presets });
+      await FwrStore.savePresets(presets);
       
       // プリセット順序変更をバックグラウンドに通知（コンテキストメニュー更新用）
       await browser.runtime.sendMessage({

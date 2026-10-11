@@ -45,11 +45,7 @@ async function loadPresets() {
       }
 
       // ストレージからプリセットを取得
-      const data = await browser.storage.local.get('presets');
-      await Logger.info('取得したデータ:', data);
-
-      // presets が配列でない場合は空の配列を使用
-      const presets = Array.isArray(data.presets) ? data.presets : [];
+      const presets = await FwrStore.getPresets();
       await Logger.info('プリセット配列:', presets, '長さ:', presets.length);
 
       // コンテンツをクリア

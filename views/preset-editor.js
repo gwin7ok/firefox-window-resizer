@@ -64,10 +64,8 @@ async function loadPresetData(presetId) {
     await Logger.logPresetOperation('データ読み込み', async () => {
       await Logger.info('プリセットID:', presetId, 'のデータを読み込みます');
 
-      const data = await browser.storage.local.get('presets');
-      await Logger.info('取得したデータ:', data);
-
-      const presets = Array.isArray(data.presets) ? data.presets : [];
+      const presets = await FwrStore.getPresets();
+      await Logger.info('取得したプリセット数:', presets.length);
 
       const preset = presets.find(p => p.id === presetId);
       if (!preset) {
@@ -175,17 +173,17 @@ async function useCurrentWindowSize() {
       await Logger.info('対象ウィンドウサイズ (論理ピクセル):', logicalValues);
 
       // 2. ユーザー設定のDPR値を取得
-      const data = await browser.storage.local.get('systemDpr');
-      const systemDpr = data.systemDpr || 100;  // デフォルト100%
-      const dprFactor = systemDpr / 100;
+      const dprFactor = await FwrStore.getDprFactor();
+      const systemDpr = Math.round(dprFactor * 100);
 
       await Logger.info(`2. ユーザー設定のDPR値: ${dprFactor} (拡大率: ${systemDpr}%)`);
 
       // 3. 論理ピクセル値を物理ピクセル値に変換
-      const physicalWidth = Math.round(logicalValues.width * dprFactor);
-      const physicalHeight = Math.round(logicalValues.height * dprFactor);
-      const physicalLeft = Math.round(logicalValues.left * dprFactor);
-      const physicalTop = Math.round(logicalValues.top * dprFactor);
+      const physical = FwrStore.toPhysical(logicalValues, dprFactor);
+      const physicalWidth = physical.width;
+      const physicalHeight = physical.height;
+      const physicalLeft = physical.left;
+      const physicalTop = physical.top;
 
       await Logger.info("3. 論理ピクセル値にDPRをかけて物理ピクセル値に変換");
 
@@ -272,8 +270,7 @@ async function savePreset(event) {
 
       // ストレージから既存のプリセットを取得
       await Logger.info('既存のプリセット一覧を取得中...');
-      const data = await browser.storage.local.get('presets');
-      let presets = Array.isArray(data.presets) ? data.presets : [];
+      const presets = await FwrStore.getPresets();
       await Logger.info(`現在のプリセット数: ${presets.length}`);
 
       // 編集モードの場合は既存プリセットを置換、そうでなければ追加
@@ -293,7 +290,7 @@ async function savePreset(event) {
 
       // プリセットを保存
       await Logger.info('ストレージに保存中...');
-      await browser.storage.local.set({ presets });
+      await FwrStore.savePresets(presets);
       await Logger.info('ストレージへの保存が完了しました');
 
       // 保存完了を通知

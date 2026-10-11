@@ -62,6 +62,7 @@ function makeEnv(options = {}) {
   const sandbox = { document, window: { addEventListener() {}, innerWidth: 400, innerHeight: 600 }, browser,
     Logger: { error: async () => {}, info: async () => {} }, console, setTimeout, clearTimeout, Date, Math, Set, Map, Promise };
   vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'store.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'views', 'history-groups.js'), 'utf8')
     .replace(/typeof self !== 'undefined' \? self : this/, 'globalThis'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'views', 'history-sidebar.js'), 'utf8'), sandbox);

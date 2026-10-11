@@ -37,6 +37,7 @@ function makeEnv(initialStorage) {
   };
   const sandbox = { browser, Logger: noopLogger, console, setTimeout, clearTimeout, Promise };
   vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'store.js'), 'utf8'), sandbox, { filename: 'store.js' });
   vm.runInContext(fs.readFileSync(SRC, 'utf8'), sandbox, { filename: 'background.js' });
   return { store, calls, listeners };
 }
