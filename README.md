@@ -78,6 +78,7 @@
 ## 動作環境・権限
 
 - Firefox 140.0 以降（Manifest V2 の WebExtensions）
+- マルチモニター環境に対応
 - 開発・動作確認は Windows 環境で行っています。
 
 ### 使用する権限
@@ -98,7 +99,7 @@
 
 ## ライセンス・著作権
 
-Firefox Window Resizer © 2023-2025 gwin7ok
+Firefox Window Resizer © 2023-2026 gwin7ok
 
 ## 更新履歴
 
