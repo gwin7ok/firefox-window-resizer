@@ -65,7 +65,7 @@ firefox-window-resizer/
 
 ## テスト
 
-背景スクリプト（`scripts/background.js`）を `browser` API のモックで読み込み、起動時の初期化・メニュー・メッセージの挙動を検証します。Node.js だけで動作し、追加のインストールは不要です。
+背景スクリプト（`scripts/*.js`）と各画面（`views/*.js`）を、`browser` API のモックと最小限の DOM スタブ（`tests/helpers/fake-dom.js`）で読み込み、起動時の初期化・メニュー・ウィンドウ操作・メッセージ、およびポップアップ・設定画面・プリセット編集・履歴サイドバーの挙動を検証します。Node.js だけで動作し、追加のインストールは不要です。
 
 ```powershell
 node tests/run.js

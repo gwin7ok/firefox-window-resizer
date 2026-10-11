@@ -655,7 +655,7 @@ function setupDragAndDrop(tbody) {
           dropTargetIndex -= 1;
         }
         
-        console.log('Drop event:', {
+        Logger.debug('Drop event:', {
           draggedIndex: draggedIndex,
           dropTargetIndex: dropTargetIndex,
           mouseY: mouseY,
