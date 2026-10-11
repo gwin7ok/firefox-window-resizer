@@ -24,6 +24,7 @@
          "scripts/logger.js",
          "scripts/store.js",
          "scripts/window-actions.js",
+         "scripts/menus.js",
          "scripts/background.js"
       ],
       "persistent": false
