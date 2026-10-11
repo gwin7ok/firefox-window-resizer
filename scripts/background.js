@@ -252,19 +252,6 @@ async function initialize() {
 
       await ensureDefaults();
 
-      // アイコン設定
-      try {
-        await browser.browserAction.setIcon({
-          path: {
-            16: "../assets/icons/icon-16.png",
-            32: "../assets/icons/icon-32.png",
-            48: "../assets/icons/icon-48.png",
-          }
-        });
-      } catch (error) {
-        await Logger.error("アイコン設定エラー:", error);
-      }
-
       // コンテキストメニュー設定
       try {
         await createContextMenus();
