@@ -235,7 +235,7 @@ async function savePreset(event) {
 
   try {
     // Logger でグループ化したログ出力を行う
-    await Logger.logPresetOperation('保存', async () => {
+    const saved = await Logger.logPresetOperation('保存', async () => {
       await Logger.info('プリセット保存処理を開始します');
 
       // フォームから値を取得
@@ -254,7 +254,7 @@ async function savePreset(event) {
       if (isNaN(width) || width <= 0 || isNaN(height) || height <= 0) {
         await Logger.error('入力値エラー: 幅や高さが無効な値です', { width, height });
         alert('幅と高さには正の値を入力してください');
-        return;
+        return false; // 保存していない（エディタは閉じない）
       }
 
       // プリセットオブジェクトを作成
@@ -307,11 +307,14 @@ async function savePreset(event) {
 
       // ウィンドウを閉じる
       await Logger.info('エディタウィンドウを閉じます');
+      return true;
     });
 
-    // ウィンドウを閉じる処理はグループ外に移動
-    // これにより必ずウィンドウが閉じられることを保証
-    window.close();
+    // 保存できた場合のみ、ウィンドウを閉じる（入力検証エラー時は閉じず、入力を直せるようにする）
+    // ウィンドウを閉じる処理はグループ外に置き、ログ出力の失敗に影響されないようにしている
+    if (saved) {
+      window.close();
+    }
   } catch (err) {
     await Logger.error('プリセット保存処理でエラーが発生しました:', err);
     alert('プリセットの保存に失敗しました: ' + err.message);
