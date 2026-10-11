@@ -63,10 +63,18 @@ body {
   padding: 0;
 }
 
-.history-more {
-  display: block;
-  width: 100%;
+.history-more-row {
+  display: flex;
+  gap: 6px;
   margin-top: 8px;
+}
+
+.history-more-row[hidden] {
+  display: none;
+}
+
+.history-more {
+  flex: 1;
   padding: 6px 8px;
   border: 1px solid #d7d7db;
   border-radius: 4px;

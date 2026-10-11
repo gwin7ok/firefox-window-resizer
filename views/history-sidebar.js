@@ -2,6 +2,7 @@
 
 const HISTORY_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
+const MAX_LOAD_ALL_PAGES = 5000; // 「すべて読み込む」の安全上限（約50万件）
 
 let searchTimer = null;
 let expandedItem = null;
@@ -12,6 +13,8 @@ let loadedItems = [];
 let seenIds = new Set();
 let oldestVisitTime = null; // 次ページ取得用（これより前の履歴を取得する）
 let hasMore = false;
+let loadingAll = false;      // 「すべて読み込む」実行中
+let cancelLoadAll = false;   // 「すべて読み込む」の中止要求
 let currentQuery = '';
 // ユーザーが開閉した日付グループの状態（key -> open）。未操作の日付は既定の状態になる
 let toggledGroups = new Map();
@@ -36,6 +39,13 @@ document.addEventListener('DOMContentLoaded', async function () {
   document.addEventListener('scroll', closeContextMenu, true);
 
   document.getElementById('history-more').addEventListener('click', loadMoreHistory);
+  document.getElementById('history-all').addEventListener('click', function () {
+    if (loadingAll) {
+      cancelLoadAll = true;
+      return undefined;
+    }
+    return loadAllHistory();
+  });
 
   await loadHistory();
 });
@@ -54,11 +64,46 @@ async function loadHistory() {
 
 // 「さらに読み込む」: 読み込み済みの最も古い履歴より前を取得する
 async function loadMoreHistory() {
+  if (loadingAll) {
+    return;
+  }
   await fetchHistoryPage();
 }
 
-// 履歴を1ページ分取得して、一覧に反映する
-async function fetchHistoryPage() {
+// 「すべて読み込む」: 取得できる履歴がなくなるまで繰り返し取得する（途中で中止できる）
+async function loadAllHistory() {
+  const status = document.getElementById('history-status');
+  const allButton = document.getElementById('history-all');
+  const moreButton = document.getElementById('history-more');
+
+  loadingAll = true;
+  cancelLoadAll = false;
+  moreButton.disabled = true;
+  allButton.textContent = '中止';
+
+  try {
+    let pages = 0;
+    while (hasMore && !cancelLoadAll && pages < MAX_LOAD_ALL_PAGES) {
+      const ok = await fetchHistoryPage({ render: false });
+      if (!ok) {
+        break;
+      }
+      pages++;
+      status.textContent = `読み込み中… ${loadedItems.length}件`;
+    }
+  } finally {
+    loadingAll = false;
+    cancelLoadAll = false;
+    moreButton.disabled = false;
+    allButton.textContent = 'すべて読み込む';
+    status.textContent = loadedItems.length === 0 ? '履歴が見つかりません' : '';
+    renderHistory();
+  }
+}
+
+// 履歴を1ページ分取得して、一覧に反映する。成功したら true を返す
+async function fetchHistoryPage(options) {
+  const render = !options || options.render !== false;
   const status = document.getElementById('history-status');
 
   try {
@@ -85,20 +130,25 @@ async function fetchHistoryPage() {
       }
     }
 
-    // 1ページ分が埋まっていて新しい項目が増えた場合のみ、続きがあるとみなす
-    hasMore = items.length >= HISTORY_PAGE_SIZE && added > 0;
-    status.textContent = loadedItems.length === 0 ? '履歴が見つかりません' : '';
-    renderHistory();
+    // Firefox は maxResults 未満の件数しか返さないことがあるため、
+    // 1ページ分に満たなくても、新しい項目が増えた間は続きがあるとみなす
+    hasMore = added > 0;
+    if (render) {
+      status.textContent = loadedItems.length === 0 ? '履歴が見つかりません' : '';
+      renderHistory();
+    }
+    return true;
   } catch (err) {
     await Logger.error('履歴読み込みエラー:', err);
     status.textContent = '履歴の読み込みに失敗しました';
+    return false;
   }
 }
 
 // 日付ごとの開閉できるツリーとして描画する
 function renderHistory() {
   const list = document.getElementById('history-list');
-  const moreButton = document.getElementById('history-more');
+  const moreRow = document.getElementById('history-more-row');
   const todayKey = HistoryGroups.dateKey(Date.now());
 
   list.innerHTML = '';
@@ -113,8 +163,26 @@ function renderHistory() {
     details.open = toggledGroups.has(group.key)
       ? toggledGroups.get(group.key)
       : (currentQuery !== '' || group.key === todayKey);
+
+    // 件数が多くても軽いよう、項目は開いたときに初めて描画する
+    const items = document.createElement('ul');
+    items.className = 'history-group-items';
+    let filled = false;
+    const fillItems = function () {
+      if (filled) {
+        return;
+      }
+      filled = true;
+      for (const item of group.items) {
+        items.appendChild(createHistoryItem(item));
+      }
+    };
+
     details.addEventListener('toggle', function () {
       toggledGroups.set(group.key, details.open);
+      if (details.open) {
+        fillItems();
+      }
     });
 
     const summary = document.createElement('summary');
@@ -132,18 +200,16 @@ function renderHistory() {
     summary.appendChild(count);
     details.appendChild(summary);
 
-    const items = document.createElement('ul');
-    items.className = 'history-group-items';
-    for (const item of group.items) {
-      items.appendChild(createHistoryItem(item));
-    }
     details.appendChild(items);
+    if (details.open) {
+      fillItems();
+    }
 
     li.appendChild(details);
     list.appendChild(li);
   }
 
-  moreButton.hidden = !hasMore;
+  moreRow.hidden = !hasMore && !loadingAll;
 }
 
 // 履歴項目を作成（クリックでプリセット選択を展開）
