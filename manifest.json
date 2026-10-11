@@ -36,6 +36,7 @@
    "sidebar_action": {
       "default_title": "履歴を別ウィンドウで開く",
       "default_panel": "views/history-sidebar.html",
+      "open_at_install": false,
       "default_icon": {
          "16": "assets/icons/browser-icon-16.png",
          "32": "assets/icons/browser-icon-32.png"
