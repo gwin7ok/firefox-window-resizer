@@ -1,9 +1,8 @@
 // background.js を browser API のモックで読み込み、挙動を検証する（Node 標準機能のみ）。
 // 実行: node tests/run.js
 // background.js を browser API のモックで読み込み、起動まわりの挙動を検証する
-const fs = require('fs'), vm = require('vm'), assert = require('assert');
-const path = require('path');
-const SRC = path.join(__dirname, '..', 'scripts', 'background.js');
+const assert = require('assert');
+const { loadBackground } = require('./helpers/load-background');
 
 function makeEnv(initialStorage) {
   const store = JSON.parse(JSON.stringify(initialStorage));
@@ -35,10 +34,7 @@ function makeEnv(initialStorage) {
     },
     tabs: { query: async () => [], create: async () => ({}), update: async () => ({}) }
   };
-  const sandbox = { browser, Logger: noopLogger, console, setTimeout, clearTimeout, Promise };
-  vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'store.js'), 'utf8'), sandbox, { filename: 'store.js' });
-  vm.runInContext(fs.readFileSync(SRC, 'utf8'), sandbox, { filename: 'background.js' });
+  loadBackground({ browser, Logger: noopLogger });
   return { store, calls, listeners };
 }
 const plain = (x) => JSON.parse(JSON.stringify(x));
