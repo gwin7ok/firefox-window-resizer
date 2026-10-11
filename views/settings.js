@@ -86,16 +86,20 @@ function setupEventListeners() {
 
 // メッセージリスナーのセットアップ
 function setupMessageListeners() {
-  browser.runtime.onMessage.addListener(async (message) => {
-    await Logger.info('メッセージを受信[settings.js]:', message);
-    
+  // 自分が扱わないメッセージには応答しない（背景スクリプトの応答を妨げないため async にしない）
+  browser.runtime.onMessage.addListener((message) => {
+    Logger.info('メッセージを受信[settings.js]:', message);
+
     if (message.action === 'refreshSettings') {
       // プリセットの変更通知を受けたら、プリセットリストと起動時設定を更新
-      await loadPresets();
-      await loadDefaultPresetSetting();
-      
-      showStatusMessage('プリセットリストを更新しました');
+      return (async () => {
+        await loadPresets();
+        await loadDefaultPresetSetting();
+
+        showStatusMessage('プリセットリストを更新しました');
+      })();
     }
+    return undefined;
   });
 }
 

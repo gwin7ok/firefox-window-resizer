@@ -67,6 +67,41 @@ async function showPresetInfo() {
 
 
 /**
+ * コンテキストメニュー項目IDに埋め込むプリセットのキーを返す。
+ * 並べ替えや削除でメニュー再構築前にクリックされても別のプリセットを指さないよう、
+ * 配列のindexではなくプリセットIDを使う（idがない場合のみindexで代替）。
+ * @param {Object} preset
+ * @param {number} index
+ * @returns {string}
+ */
+function presetMenuKey(preset, index) {
+  return preset && preset.id ? String(preset.id) : `index:${index}`;
+}
+
+/**
+ * メニュー項目IDを解析する。形式: "{preset|dup}-{link|page|tab|bookmark}-{presetKey}"
+ * @param {string} menuItemId
+ * @returns {{kind: string, context: string, key: string}|null}
+ */
+function parsePresetMenuItemId(menuItemId) {
+  const m = /^(preset|dup)-(link|page|tab|bookmark)-(.+)$/.exec(String(menuItemId));
+  return m ? { kind: m[1], context: m[2], key: m[3] } : null;
+}
+
+/**
+ * メニュー項目IDのキーからプリセットを取得する。
+ * @param {Array<Object>} presets
+ * @param {string} key
+ * @returns {Object|undefined}
+ */
+function findPresetByMenuKey(presets, key) {
+  if (key.startsWith('index:')) {
+    return presets[parseInt(key.slice('index:'.length), 10)];
+  }
+  return presets.find(preset => preset && String(preset.id) === key);
+}
+
+/**
  * コンテキストメニューを作成
  * @returns {Promise<void>}
  */
@@ -127,7 +162,7 @@ async function createPresetContextMenus() {
       
       // プリセットのサブメニューを作成
       presets.forEach((preset, index) => {
-        const menuId = `preset-${context}-${index}`;
+        const menuId = `preset-${context}-${presetMenuKey(preset, index)}`;
         browser.contextMenus.create({
           id: menuId,
           parentId: parentId,
@@ -148,7 +183,7 @@ async function createPresetContextMenus() {
 
       presets.forEach((preset, index) => {
         browser.contextMenus.create({
-          id: `dup-${context}-${index}`,
+          id: `dup-${context}-${presetMenuKey(preset, index)}`,
           parentId: parentId,
           title: preset.name.replace(/\n/g, ' '),
           contexts: [context]
@@ -586,7 +621,8 @@ async function applyDefaultPresetIfNeeded() {
 
 // 現在のウィンドウIDを取得
 async function getCurrentWindowId() {
-  const win = await browser.windows.getCurrent();
+  // バックグラウンドには「現在のウィンドウ」がないため、最後にフォーカスされた通常ウィンドウを使う
+  const win = await browser.windows.getLastFocused({ windowTypes: ['normal'] });
   return win.id;
 }
 
@@ -620,43 +656,50 @@ browser.storage.onChanged.addListener(async (changes, area) => {
   }
 });
 
-// メッセージリスナーを修正
-browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  await Logger.info('メッセージを受信[background.js]:', request);
+// プリセットの保存/削除通知を受けたときの処理
+async function handlePresetsChanged(action) {
+  // コンテキストメニューを更新
+  await updateContextMenus();
 
-  if (request.action === 'applyPreset') {
-    const detachTab = request.detachTab === true;
-    const targetWindowId = request.windowId; // 送信元ウィンドウIDを取得
-    await Logger.info(`プリセット適用: 対象ウィンドウID ${targetWindowId}`);
-    await applyPresetWithOptions(request.preset, detachTab, targetWindowId);
-  } else if (request.action === 'openUrlWithPreset') {
-    // 履歴サイドバーなどから「URLを別ウィンドウで開く」依頼
-    await openLinkInNewWindowWithPreset(request.url, request.preset, request.windowId);
-  } else if (request.action === 'openSettingsPage') {
-    openSettingsPage();
-  } else if (request.action === 'getSystemDpr') {
-    getSystemDpr(sendResponse);
-    return true;  // 非同期レスポンスを維持
-  } else if (request.action === 'presetSaved' || request.action === 'presetDeleted') {
-    // プリセットが保存/削除された時にコンテキストメニューを更新
-    await updateContextMenus();
-    
-    // プリセットが保存/削除された時に、開いている設定ページへ通知
-    const settingsTabs = await browser.tabs.query({
-      url: browser.runtime.getURL('views/settings.html')
-    });
-    
-    // 各設定ページタブに更新を通知
-    for (const tab of settingsTabs) {
-      try {
-        await browser.tabs.sendMessage(tab.id, {
-          action: 'refreshSettings',
-          source: request.action
-        });
-      } catch (err) {
-        await Logger.warn(`設定ページへの通知エラー (タブID: ${tab.id}):`, err);
-      }
+  // 開いている設定ページへ通知
+  const settingsTabs = await browser.tabs.query({
+    url: browser.runtime.getURL('views/settings.html')
+  });
+
+  for (const tab of settingsTabs) {
+    try {
+      await browser.tabs.sendMessage(tab.id, {
+        action: 'refreshSettings',
+        source: action
+      });
+    } catch (err) {
+      await Logger.warn(`設定ページへの通知エラー (タブID: ${tab.id}):`, err);
     }
+  }
+}
+
+// メッセージリスナー
+// 応答は Promise を返す方式に統一する。自分が扱わないメッセージには undefined を返し、
+// 他のコンテキスト（設定ページなど）のリスナーの応答を妨げない。
+browser.runtime.onMessage.addListener((request) => {
+  Logger.info('メッセージを受信[background.js]:', request);
+
+  switch (request.action) {
+    case 'applyPreset':
+      return applyPresetWithOptions(request.preset, request.detachTab === true, request.windowId);
+    case 'openUrlWithPreset':
+      // 履歴サイドバーなどから「URLを別ウィンドウで開く」依頼
+      return openLinkInNewWindowWithPreset(request.url, request.preset, request.windowId);
+    case 'openSettingsPage':
+      return openSettingsPage();
+    case 'getSystemDpr':
+      // 拡大率（%）を返す
+      return getSystemDpr().then(dpr => Math.round(dpr * 100));
+    case 'presetSaved':
+    case 'presetDeleted':
+      return handlePresetsChanged(request.action);
+    default:
+      return undefined;
   }
 });
 
@@ -702,36 +745,27 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
  */
 async function handlePresetContextMenu(info, tab) {
   try {
-    // メニューIDからプリセットインデックスを取得
-    // 形式: "preset-{context}-{index}"
-    const parts = info.menuItemId.split('-');
-    if (parts.length < 3) {
+    const parsed = parsePresetMenuItemId(info.menuItemId);
+    if (!parsed) {
       await Logger.error('無効なメニューID:', info.menuItemId);
       return;
     }
-    
-    const presetIndex = parseInt(parts[2]);
-    if (isNaN(presetIndex)) {
-      await Logger.error('無効なプリセットインデックス:', parts[2]);
-      return;
-    }
-    
-    // プリセットを取得
+
+    // プリセットを取得（メニューIDのキーはプリセットID。並べ替え直後でも正しいプリセットを指す）
     const data = await browser.storage.local.get('presets');
     const presets = Array.isArray(data.presets) ? data.presets : [];
-    
-    if (presetIndex >= presets.length) {
-      await Logger.error('プリセットインデックスが範囲外:', presetIndex);
+    const preset = findPresetByMenuKey(presets, parsed.key);
+    if (!preset) {
+      await Logger.error('メニューに対応するプリセットが見つかりません:', parsed.key);
       return;
     }
-    
-    const preset = presets[presetIndex];
-    const contextType = parts[1]; // "link", "page", "tab", "bookmark"
+
+    const contextType = parsed.context; // "link", "page", "tab", "bookmark"
     await Logger.info(`コンテキストメニューからプリセット適用: ${preset.name} (コンテキスト: ${contextType})`);
-    
+
     if (contextType === 'link') {
       // URLリンクの場合：リンクURLを新しいウィンドウで開いてプリセット適用
-      await openLinkInNewWindowWithPreset(info.linkUrl, preset);
+      await openLinkInNewWindowWithPreset(info.linkUrl, preset, tab ? tab.windowId : null);
     } else if (contextType === 'bookmark') {
       // ブックマークの場合：ブックマークのURLを新しいウィンドウで開いてプリセット適用
       if (!info.bookmarkId) {
@@ -743,7 +777,7 @@ async function handlePresetContextMenu(info, tab) {
         await Logger.warn('URLを持たないブックマーク項目（フォルダ等）のため処理をスキップします');
         return;
       }
-      await openLinkInNewWindowWithPreset(bookmark.url, preset);
+      await openLinkInNewWindowWithPreset(bookmark.url, preset, tab ? tab.windowId : null);
     } else {
       // ページ背景・タブの場合：現在のタブを別ウィンドウ化してプリセット適用
       await applyPresetWithOptions(preset, true, tab.windowId, tab.id);
@@ -761,23 +795,21 @@ async function handlePresetContextMenu(info, tab) {
  */
 async function handleDuplicateContextMenu(info, tab) {
   try {
-    // 形式: "dup-{context}-{index}"
-    const parts = info.menuItemId.split('-');
-    const presetIndex = parseInt(parts[2]);
-    if (parts.length < 3 || isNaN(presetIndex)) {
+    const parsed = parsePresetMenuItemId(info.menuItemId);
+    if (!parsed) {
       await Logger.error('無効なメニューID:', info.menuItemId);
       return;
     }
 
     const data = await browser.storage.local.get('presets');
     const presets = Array.isArray(data.presets) ? data.presets : [];
-    const preset = presets[presetIndex];
+    const preset = findPresetByMenuKey(presets, parsed.key);
     if (!preset) {
-      await Logger.error('プリセットインデックスが範囲外:', presetIndex);
+      await Logger.error('メニューに対応するプリセットが見つかりません:', parsed.key);
       return;
     }
 
-    await Logger.info(`複製して別ウィンドウで開く: ${preset.name} (コンテキスト: ${parts[1]}, タブID: ${tab.id})`);
+    await Logger.info(`複製して別ウィンドウで開く: ${preset.name} (コンテキスト: ${parsed.context}, タブID: ${tab.id})`);
 
     // 元のタブはそのまま残し、複製したタブを別ウィンドウに移動する
     const duplicatedTab = await browser.tabs.duplicate(tab.id);
@@ -799,10 +831,10 @@ async function openLinkInNewWindowWithPreset(url, preset, windowId = null) {
       await Logger.info(`リンクURLを新しいウィンドウで開きます: ${url}`);
       await Logger.info(`適用プリセット: ${preset.name} (${preset.width}×${preset.height})`);
       
-      // 1. 現在のウィンドウでURLをタブとして開く
+      // 1. 指定ウィンドウ（なければ最後にフォーカスされた通常ウィンドウ）でURLをタブとして開く
       const currentWindow = windowId !== null && windowId !== undefined
         ? { id: windowId }
-        : await browser.windows.getCurrent();
+        : await browser.windows.getLastFocused({ windowTypes: ['normal'] });
       await Logger.info(`現在のウィンドウID: ${currentWindow.id}`);
       
       const newTab = await browser.tabs.create({
@@ -817,7 +849,7 @@ async function openLinkInNewWindowWithPreset(url, preset, windowId = null) {
       
       // 3. applyPresetWithOptions関数を使用してタブを別ウィンドウ化＋プリセット適用
       await Logger.info(`タブ分離モードでプリセットを適用します`);
-      const result = await applyPresetWithOptions(preset, true, currentWindow.id);
+      const result = await applyPresetWithOptions(preset, true, currentWindow.id, newTab.id);
       
       await Logger.info(`リンクを新ウィンドウで開く処理が完了しました:`, result);
       return result;
