@@ -41,6 +41,11 @@ firefox-window-resizer/
    `dist/gwins-window-resizer.xpi` が作成されます（`dist/` は Git の追跡対象外です）。エクスプローラーからは `tools/build-xpi.bat` をダブルクリックしても実行できます。VS Code のタスクから実行する場合は、`Tasks: Run Task` で `Publish: (Release win-x64)` を選びます。
 2. 署名のない XPI は通常の Firefox にはインストールできません。動作確認には `about:debugging` →「このFirefox」→「一時的なアドオンを読み込む」で `manifest.json` を選びます。
 
+## ログ出力
+
+ログは `scripts/logger.js`（`Logger`）で `console` に出力します。確認は `about:debugging` の「調査」で開く DevTools のコンソールで行います。
+既定ではすべて出力します。出力を絞る場合は、コンソールで `Logger.level = Logger.LEVEL.WARN` のように設定します（NONE / ERROR / WARN / INFO / DEBUG）。
+
 ## テスト
 
 背景スクリプト（`scripts/background.js`）を `browser` API のモックで読み込み、起動時の初期化・メニュー・メッセージの挙動を検証します。Node.js だけで動作し、追加のインストールは不要です。
